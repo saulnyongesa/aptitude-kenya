@@ -23,12 +23,12 @@
 
 1.  **Clone the repository**:
     ```bash
-    https://github.com/saulnyongesa/aptitude-kenya.git
-    cd aptitude-kenya
+    git clone https://github.com/saulnyongesa/aptitude-kenya.git
     ```
 
 2.  **Set up virtual environment**:
     ```bash
+    cd aptitude-kenya
     python -m venv venv
     source venv/bin/activate  # On Windows: venv\Scripts\activate
     ```
