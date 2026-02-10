@@ -23,7 +23,7 @@
 
 1.  **Clone the repository**:
     ```bash
-    git clone [https://github.com/saulnyongesa/aptitude-kenya.git](https://github.com/saulnyongesa/aptitude-kenya.git)
+    https://github.com/saulnyongesa/aptitude-kenya.git
     cd aptitude-kenya
     ```
 
