@@ -1,0 +1,26 @@
+<nav class="navbar navbar-expand-lg border-bottom border-2 border-dark bg-white sticky-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/">APTITUDE-KENYA</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                {% if user.is_authenticated %}
+                    {% if user.is_tutor %}
+                        <li class="nav-item"><a class="nav-link" href="#">My Classrooms</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#">Reports</a></li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="#">Joined Rooms</a></li>
+                    {% endif %}
+                    <li class="nav-item ms-lg-3">
+                        <div class="avatar-circle">{{ user.fullname|slice:":1" }}</div>
+                    </li>
+                {% else %}
+                    <li class="nav-item"><a class="nav-link btn btn-custom ms-lg-2" href="#">Login</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

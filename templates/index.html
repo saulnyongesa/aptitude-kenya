@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Aptitude Kenya - Excellence in Digital Assessments{% endblock title %}
+
+{% block content %}
+    <section class="hero-blur text-center">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <h1 class="display-4 fw-bold mb-3" style="color: var(--dark-slate);">Excellence in Digital Assessments</h1>
+                    <p class="lead mb-5 text-secondary">A secure, transparent, and scalable platform designed specifically for the Kenyan educational landscape.</p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{% url 'auth_page' %}" class="btn btn-custom btn-lg px-5">Join as Tutor</a>
+                        <a href="#about" class="btn btn-outline-dark btn-lg px-5">Learn More</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5" id="impact">
+        <div class="container">
+            <div class="row g-4 text-center">
+                <div class="col-md-3">
+                    <div class="p-4 bk-border h-100">
+                        <h3 class="display-6 fw-bold text-success">{{ tutor_count|default:"0" }}</h3>
+                        <p class="text-muted small fw-bold mb-0 text-uppercase">Tutors</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-4 bk-border h-100">
+                        <h3 class="display-6 fw-bold text-success">{{ student_count|default:"0" }}</h3>
+                        <p class="text-muted small fw-bold mb-0 text-uppercase">Students</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-4 bk-border h-100">
+                        <h3 class="display-6 fw-bold text-success">{{ classroom_count|default:"0" }}</h3>
+                        <p class="text-muted small fw-bold mb-0 text-uppercase">Classrooms</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-4 bk-border h-100">
+                        <h3 class="display-6 fw-bold text-success">{{ exam_count|default:"0" }}</h3>
+                        <p class="text-muted small fw-bold mb-0 text-uppercase">Exams</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5" id="about">
+        <div class="container">
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="p-5 bk-border h-100 shadow-sm">
+                        <h2 class="fw-bold mb-4">Our Mission</h2>
+                        <p class="text-secondary mb-4">Aptitude Kenya provides a bridge between traditional teaching and modern, secure digital examination methods. We empower educators with automated tools that ensure integrity and efficiency.</p>
+                        <div class="row g-3">
+                            <div class="col-6"><i class="fas fa-check-circle text-success me-2"></i> Real-time Grading</div>
+                            <div class="col-6"><i class="fas fa-check-circle text-success me-2"></i> Secure Proctoring</div>
+                            <div class="col-6"><i class="fas fa-check-circle text-success me-2"></i> Institutional Analytics</div>
+                            <div class="col-6"><i class="fas fa-check-circle text-success me-2"></i> Mobile Friendly</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="row g-4 h-100">
+                        <div class="col-12">
+                            <div class="p-4 bk-border h-100">
+                                <h5 class="fw-bold"><i class="fas fa-shield-alt text-success me-2"></i> Integrity First</h5>
+                                <p class="small text-muted mb-0">Our platform is built to minimize exam malpractice through advanced browser-lock features and tutor-led monitoring.</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-4 bk-border h-100">
+                                <h5 class="fw-bold"><i class="fas fa-chart-line text-success me-2"></i> Data Driven</h5>
+                                <p class="small text-muted mb-0">Get detailed student performance analytics to identify learning gaps and academic strengths instantly.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5" id="contact">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="bk-border p-4 p-md-5">
+                        <div class="row g-5 align-items-center">
+                            <div class="col-md-5">
+                                <h2 class="fw-bold mb-4">Contact Developer</h2>
+                                <p class="text-secondary">Interested in a custom deployment for your school or college? Get in touch today.</p>
+                                <div class="mt-4">
+                                    <p class="mb-1 small fw-bold text-uppercase text-muted">Email</p>
+                                    <p class="fw-medium">dev@aptitude-kenya.com</p>
+                                    <p class="mb-1 mt-3 small fw-bold text-uppercase text-muted">Phone</p>
+                                    <p class="fw-medium">+254 7XX XXX XXX</p>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <form id="contactForm" method="post" action="{% url 'send_message' %}">
+                                    {% csrf_token %}
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Name</label>
+                                            <input type="text" class="form-control p-3 bg-light border-0 rounded-3" name="name" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Email</label>
+                                            <input type="email" class="form-control p-3 bg-light border-0 rounded-3" name="email" required>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small fw-bold">Message</label>
+                                            <textarea class="form-control p-3 bg-light border-0 rounded-3" name="message" rows="4" required></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <button type="submit" class="btn btn-custom w-100 py-3" id="sendButton">SEND MESSAGE</button>
+                                        </div>
+                                    </div>
+                                </form>
+                                <div id="contactAlertArea" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+    const CSRF_TOKEN = "{{ csrf_token }}";
+    document.getElementById('contactForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('sendButton');
+        const alertArea = document.getElementById('contactAlertArea');
+        const formData = new FormData(this);
+
+        btn.disabled = true;
+        btn.innerHTML = 'Sending...';
+
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF_TOKEN },
+                body: formData
+            });
+            const result = await response.json();
+            if (response.ok) {
+                alertArea.innerHTML = `<div class="alert alert-success border-0 rounded-3">${result.message}</div>`;
+                this.reset();
+            } else {
+                alertArea.innerHTML = `<div class="alert alert-danger border-0 rounded-3">Submission failed.</div>`;
+            }
+        } catch (err) {
+            alertArea.innerHTML = `<div class="alert alert-danger border-0 rounded-3">Network error.</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'SEND MESSAGE';
+        }
+    });
+</script>
+{% endblock scripts %}
