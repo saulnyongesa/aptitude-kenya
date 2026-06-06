@@ -1,27 +1,39 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Classroom, Exam, Question, Choice, Submission, StudentAnswer, ProctorLog, SiteStatistic, ContactMessage
+from .models import User, TutorProfile, StudentProfile, Classroom, Exam, Question, Choice, Submission, StudentAnswer, ProctorLog, SiteStatistic, ContactMessage
 
 # --- 1. Custom User Admin ---
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'fullname', 'is_tutor', 'is_student', 'school_name', 'registration_id')
-    list_filter = ('is_tutor', 'is_student', 'school_name')
+    list_display = ('email', 'fullname', 'role', 'phone_number', 'is_suspended', 'is_staff')
+    list_filter = ('role', 'is_suspended', 'is_staff')
     search_fields = ('email', 'fullname', 'registration_id')
     ordering = ('email',)
     
     # Organizes the detail view in the admin
     fieldsets = UserAdmin.fieldsets + (
-        ('Aptitude-Kenya Roles', {'fields': ('is_tutor', 'is_student')}),
-        ('Student Info', {'fields': ('school_name', 'registration_id')}),
+        ('Aptitude Kenya Role', {'fields': ('role', 'phone_number', 'is_suspended')}),
+        ('Legacy Student Info', {'fields': ('school_name', 'registration_id')}),
     )
+
+@admin.register(TutorProfile)
+class TutorProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'institution_name', 'county', 'is_verified', 'created_at')
+    list_filter = ('is_verified', 'county')
+    search_fields = ('user__email', 'user__fullname', 'institution_name')
+
+@admin.register(StudentProfile)
+class StudentProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'tutor', 'school_name', 'registration_number', 'must_change_password')
+    list_filter = ('school_name', 'must_change_password')
+    search_fields = ('user__email', 'user__fullname', 'registration_number', 'tutor__email')
 
 # --- 2. Classroom Admin ---
 @admin.register(Classroom)
 class ClassroomAdmin(admin.ModelAdmin):
-    list_display = ('name', 'room_id', 'tutor', 'created_at')
+    list_display = ('name', 'room_id', 'tutor', 'is_archived', 'created_at')
     search_fields = ('name', 'room_id', 'tutor__email')
-    list_filter = ('created_at',)
+    list_filter = ('is_archived', 'created_at')
     filter_horizontal = ('students',) # Makes selecting students easier
 
 # --- 3. Exam & Question Architecture ---

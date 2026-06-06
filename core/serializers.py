@@ -1,12 +1,28 @@
 from rest_framework import serializers
-from .models import User, Classroom, Exam, Question, Choice, Submission, ProctorLog
+from .models import User, TutorProfile, StudentProfile, Classroom, Exam, Question, Choice, Submission, ProctorLog
 
 # --- 1. User Serializer ---
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'fullname', 'email', 'is_tutor', 'is_student', 'school_name', 'registration_id']
-        read_only_fields = ['is_tutor', 'is_student']
+        fields = ['id', 'username', 'fullname', 'email', 'role', 'phone_number', 'is_suspended']
+        read_only_fields = ['role', 'is_suspended']
+
+
+class TutorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TutorProfile
+        fields = ['institution_name', 'county', 'is_verified']
+        read_only_fields = ['is_verified']
+
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    tutor_name = serializers.CharField(source='tutor.fullname', read_only=True)
+
+    class Meta:
+        model = StudentProfile
+        fields = ['tutor_name', 'school_name', 'registration_number', 'must_change_password']
+        read_only_fields = ['must_change_password']
 
 # --- 2. Exam & Question Serializers ---
 class ChoiceSerializer(serializers.ModelSerializer):

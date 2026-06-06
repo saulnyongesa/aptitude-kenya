@@ -1,2 +1,32 @@
-/.venv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+/.venv/
+/venv/
+/env/
+
+# Django/local data
 /db.sqlite3
+/media/
+/staticfiles/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local tooling
+*.log
+/.pytest_cache/
+/.coverage
+/htmlcov/
+/qa-screenshots/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

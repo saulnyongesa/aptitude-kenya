@@ -2,10 +2,28 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
 
-# 1. Custom User Model
+
 class User(AbstractUser):
+    """System account shared by admins, tutors, and students.
+
+    `role` is the long-term source of truth. The older boolean fields remain
+    for compatibility with the existing code and are synchronized on save.
+    """
+
+    ROLE_ADMIN = "admin"
+    ROLE_TUTOR = "tutor"
+    ROLE_STUDENT = "student"
+    ROLE_CHOICES = (
+        (ROLE_ADMIN, "Admin"),
+        (ROLE_TUTOR, "Tutor"),
+        (ROLE_STUDENT, "Student"),
+    )
+
     fullname = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STUDENT)
+    phone_number = models.CharField(max_length=30, blank=True)
+    is_suspended = models.BooleanField(default=False)
     is_tutor = models.BooleanField(default=False)
     is_student = models.BooleanField(default=False)
     
@@ -16,17 +34,73 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'fullname']
 
+    @property
+    def is_platform_admin(self):
+        """Return True for users allowed into the platform admin dashboard."""
+        return self.role == self.ROLE_ADMIN or self.is_staff or self.is_superuser
+
+    def save(self, *args, **kwargs):
+        """Keep legacy role booleans aligned while the model evolves."""
+        if self.is_staff or self.is_superuser:
+            self.role = self.ROLE_ADMIN
+        self.is_tutor = self.role == self.ROLE_TUTOR
+        self.is_student = self.role == self.ROLE_STUDENT
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.fullname} ({'Tutor' if self.is_tutor else 'Student'})"
+        return f"{self.fullname} ({self.get_role_display()})"
+
+
+class TutorProfile(models.Model):
+    """Tutor-specific business profile used for billing and school context."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="tutor_profile")
+    institution_name = models.CharField(max_length=255, blank=True)
+    county = models.CharField(max_length=100, blank=True)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Tutor profile for {self.user.fullname}"
+
+
+class StudentProfile(models.Model):
+    """Student identity provisioned by a tutor or admin.
+
+    The registration number is scoped to the tutor because different schools
+    can reuse similar admission numbers.
+    """
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")
+    tutor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="provisioned_students")
+    school_name = models.CharField(max_length=255)
+    registration_number = models.CharField(max_length=100)
+    must_change_password = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tutor", "registration_number"],
+                name="unique_student_registration_per_tutor",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user.fullname} ({self.registration_number})"
 
 # 2. Classroom Model
 class Classroom(models.Model):
+    """Tutor-owned learning group used to assign students and assessments."""
+
     tutor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_rooms')
     name = models.CharField(max_length=255)
     room_id = models.CharField(max_length=50, unique=True) # The unique ID for joining
-    password = models.CharField(max_length=50) # Plain text as per your requirement for simplicity
+    password = models.CharField(max_length=50, blank=True) # Legacy field; do not expose publicly.
     students = models.ManyToManyField(User, related_name='joined_rooms', blank=True)
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name

@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ classroom.name }}{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Classroom</p>
+                <h1 class="fw-bold mb-1">{{ classroom.name }}</h1>
+                <p class="text-secondary mb-0">Code: {{ classroom.room_id }}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-start">
+                <a href="{% url 'classroom_edit' classroom.id %}" class="btn btn-outline-dark">Edit</a>
+                <form method="post" action="{% url 'classroom_archive' classroom.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-dark" type="submit">Archive</button>
+                </form>
+            </div>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if created_credentials %}
+            <div class="alert alert-success border-0 rounded-3">
+                <strong>{{ created_credentials.name }}</strong> can log in with
+                <strong>{{ created_credentials.email }}</strong> and registration number
+                <strong>{{ created_credentials.registration_number }}</strong>. Temporary password:
+                <strong>{{ created_credentials.temporary_password }}</strong>
+            </div>
+        {% endif %}
+
+        {% if import_result %}
+            <div class="alert alert-info border-0 rounded-3">
+                <strong>{{ import_result.created|length }}</strong> students imported.
+                <strong>{{ import_result.skipped|length }}</strong> skipped.
+                <strong>{{ import_result.errors|length }}</strong> errors.
+            </div>
+        {% endif %}
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Students</p>
+                    <h2 class="fw-bold mb-0">{{ students|length }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Submissions</p>
+                    <h2 class="fw-bold mb-0">{{ performance.submission_count|default:"0" }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Average Score</p>
+                    <h2 class="fw-bold mb-0">{{ performance.average_score|default:"0" }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Add Student</h4>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_action" value="create_student">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Full Name</label>
+                            <input class="form-control p-3 bg-light border-0 rounded-3" name="fullname" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Email</label>
+                            <input class="form-control p-3 bg-light border-0 rounded-3" name="email" type="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">School Name</label>
+                            <input class="form-control p-3 bg-light border-0 rounded-3" name="school_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Registration Number</label>
+                            <input class="form-control p-3 bg-light border-0 rounded-3" name="registration_number" required>
+                        </div>
+                        <button class="btn btn-custom w-100 py-3" type="submit">ADD STUDENT</button>
+                    </form>
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Bulk Import</h4>
+                    <p class="text-secondary small">Upload CSV or XLSX with columns: fullname, email, school_name, registration_number.</p>
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_action" value="bulk_import">
+                        <input type="hidden" name="classroom_id" value="{{ classroom.id }}">
+                        <div class="mb-3">
+                            <input class="form-control" type="file" name="file" accept=".csv,.xlsx" required>
+                        </div>
+                        <button class="btn btn-outline-dark w-100 py-3" type="submit">IMPORT STUDENTS</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="bk-border p-4">
+                    <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
+                        <div>
+                            <h4 class="fw-bold mb-1">Class Students</h4>
+                            <p class="text-secondary small mb-0">Filter students already assigned to this classroom.</p>
+                        </div>
+                        <form method="get" class="d-flex gap-2">
+                            <input class="form-control" name="q" value="{{ search_query }}" placeholder="Search class">
+                            <button class="btn btn-outline-dark" type="submit">Search</button>
+                        </form>
+                    </div>
+                    {% if students %}
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Reg No.</th>
+                                        <th>School</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for profile in students %}
+                                        <tr>
+                                            <td>{{ profile.user.fullname }}</td>
+                                            <td>{{ profile.user.email }}</td>
+                                            <td>{{ profile.registration_number }}</td>
+                                            <td>{{ profile.school_name }}</td>
+                                            <td class="text-end">
+                                                <form method="post" action="{% url 'reset_student_credentials' profile.user.id %}">
+                                                    {% csrf_token %}
+                                                    <button class="btn btn-outline-dark btn-sm" type="submit">Reset</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-secondary mb-0">No students in this classroom yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

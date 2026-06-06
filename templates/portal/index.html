@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Aptitude Kenya Portal{% endblock title %}
+
+{% block content %}
+<section class="portal-shell">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <div class="portal-panel">
+                    <div class="row g-0">
+                        <div class="col-lg-5 portal-aside">
+                            <a class="portal-brand" href="/">APTITUDE<span>KENYA</span></a>
+                            <h1>Portal</h1>
+                            <p>Tutors and students enter here after accounts have been created.</p>
+                            <div class="portal-note">
+                                <i class="fas fa-circle-info"></i>
+                                <span>Students should use the email and registration number issued by their tutor.</span>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="portal-actions">
+                                <p class="eyebrow mb-2">Account Access</p>
+                                <h2 class="fw-bold mb-3">Continue to your workspace.</h2>
+                                <div class="d-grid gap-3">
+                                    <a href="{% url 'auth_page' %}?mode=login" class="portal-action">
+                                        <span class="portal-icon"><i class="fas fa-right-to-bracket"></i></span>
+                                        <span>
+                                            <strong>Login</strong>
+                                            <small>Tutors and students with existing accounts</small>
+                                        </span>
+                                        <i class="fas fa-arrow-right"></i>
+                                    </a>
+                                    <a href="{% url 'auth_page' %}?mode=register" class="portal-action secondary">
+                                        <span class="portal-icon"><i class="fas fa-user-plus"></i></span>
+                                        <span>
+                                            <strong>Create tutor account</strong>
+                                            <small>For tutors starting on Aptitude Kenya</small>
+                                        </span>
+                                        <i class="fas fa-arrow-right"></i>
+                                    </a>
+                                </div>
+                                <div class="portal-links">
+                                    <a href="{% url 'password_reset' %}">Forgot password?</a>
+                                    <a href="/">Back to website</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-center text-secondary small mt-4 mb-0">Suggested production domain: portal.aptitudekenya.ac.ke</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

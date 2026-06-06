@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container py-5">
+<div class="container py-5" data-initial-mode="{{ initial_mode }}">
     <div class="row justify-content-center">
-        <div class="col-md-5">
+        <div class="col-md-6 col-lg-5">
             <div class="bk-border p-4 p-md-5">
                 {% if messages %}
                     {% for message in messages %}
@@ -15,65 +15,52 @@
 
                 <div class="d-flex mb-4 gap-2">
                     <button class="btn btn-outline-dark w-50 active" id="loginTab" type="button">Login</button>
-                    <button class="btn btn-outline-dark w-50" id="registerTab" type="button">Register</button>
+                    <button class="btn btn-outline-dark w-50" id="registerTab" type="button">Tutor Signup</button>
                 </div>
 
-                <h3 class="fw-bold mb-4 text-center" id="authTitle">Welcome Back</h3>
+                <h3 class="fw-bold mb-2 text-center" id="authTitle">Welcome Back</h3>
+                <p class="text-secondary small text-center mb-4" id="authHelp">
+                    Students can use the email and registration number issued by their tutor.
+                </p>
 
                 <form id="authForm" method="POST" action="{% url 'auth_page' %}">
                     {% csrf_token %}
                     <input type="hidden" name="auth_mode" id="authMode" value="login">
-                    
+
+                    <div id="registerOnlyFields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Full Name</label>
+                            <input type="text" name="fullname" class="form-control p-3 bg-light border-0 rounded-3" id="fullnameInput">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Phone Number</label>
+                            <input type="text" name="phone_number" class="form-control p-3 bg-light border-0 rounded-3">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Institution Name</label>
+                            <input type="text" name="institution_name" class="form-control p-3 bg-light border-0 rounded-3">
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label small fw-bold">Email Address</label>
                         <input type="email" name="email" class="form-control p-3 bg-light border-0 rounded-3" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">Password</label>
+                        <label class="form-label small fw-bold" id="passwordLabel">Password or Registration Number</label>
                         <input type="password" name="password" class="form-control p-3 bg-light border-0 rounded-3" required>
                     </div>
 
-                    <div id="registerFields" style="display: none;">
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Confirm Password</label>
-                            <input type="password" name="confirm_password" class="form-control p-3 bg-light border-0 rounded-3" id="confirmPassInput">
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label class="form-label small fw-bold d-block mb-2">I am joining as:</label>
-                            <div class="d-flex gap-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="role" id="roleStudent" value="student">
-                                    <label class="form-check-label" for="roleStudent">Student</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="role" id="roleTutor" value="tutor">
-                                    <label class="form-check-label" for="roleTutor">Tutor</label>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="mb-3" id="confirmPasswordGroup" style="display: none;">
+                        <label class="form-label small fw-bold">Confirm Password</label>
+                        <input type="password" name="confirm_password" class="form-control p-3 bg-light border-0 rounded-3" id="confirmPassInput">
                     </div>
 
                     <button type="submit" class="btn btn-custom w-100 py-3 mt-2" id="authSubmitBtn">LOGIN</button>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="roleConfirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bk-border border-0 p-3">
-            <div class="modal-body text-center">
-                <div class="mb-3 text-success">
-                    <i class="fas fa-user-check fa-3x"></i>
-                </div>
-                <h4 class="fw-bold">Confirm Account Type</h4>
-                <p class="text-secondary">You are about to register as a <strong id="modalRoleText" class="text-dark">STUDENT</strong>.</p>
-                <div class="d-flex gap-3 mt-4">
-                    <button type="button" class="btn btn-light w-50 py-2" data-bs-dismiss="modal">Wait, Go Back</button>
-                    <button type="button" class="btn btn-custom w-50 py-2" id="finalSubmitBtn">Confirm & Register</button>
-                </div>
+                <p class="text-center small mt-3 mb-0">
+                    <a href="{% url 'password_reset' %}" class="text-secondary">Forgot password?</a>
+                </p>
             </div>
         </div>
     </div>
@@ -84,49 +71,49 @@
 <script>
     const loginTab = document.getElementById('loginTab');
     const registerTab = document.getElementById('registerTab');
-    const registerFields = document.getElementById('registerFields');
+    const registerOnlyFields = document.getElementById('registerOnlyFields');
+    const confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
     const authTitle = document.getElementById('authTitle');
+    const authHelp = document.getElementById('authHelp');
     const authSubmitBtn = document.getElementById('authSubmitBtn');
-    const authForm = document.getElementById('authForm');
     const authMode = document.getElementById('authMode');
     const confirmPass = document.getElementById('confirmPassInput');
-    const roleModal = new bootstrap.Modal(document.getElementById('roleConfirmModal'));
-    const roleTutor = document.getElementById('roleTutor');
-    const roleStudent = document.getElementById('roleStudent');
+    const fullnameInput = document.getElementById('fullnameInput');
+    const passwordLabel = document.getElementById('passwordLabel');
 
-    registerTab.onclick = () => {
+    const showRegister = () => {
         authMode.value = 'register';
         loginTab.classList.remove('active', 'btn-dark');
         registerTab.classList.add('active', 'btn-dark');
-        registerFields.style.display = 'block';
+        registerOnlyFields.style.display = 'block';
+        confirmPasswordGroup.style.display = 'block';
         confirmPass.required = true;
-        authTitle.innerText = 'Create Account';
-        authSubmitBtn.innerText = 'REGISTER';
+        fullnameInput.required = true;
+        authTitle.innerText = 'Create Tutor Account';
+        authHelp.innerText = 'Student accounts are created by tutors after signup.';
+        passwordLabel.innerText = 'Password';
+        authSubmitBtn.innerText = 'CREATE ACCOUNT';
     };
 
-    loginTab.onclick = () => {
+    const showLogin = () => {
         authMode.value = 'login';
         registerTab.classList.remove('active', 'btn-dark');
         loginTab.classList.add('active', 'btn-dark');
-        registerFields.style.display = 'none';
-        roleStudent.checked = false;
-        roleTutor.checked = false;
+        registerOnlyFields.style.display = 'none';
+        confirmPasswordGroup.style.display = 'none';
         confirmPass.required = false;
+        fullnameInput.required = false;
         authTitle.innerText = 'Welcome Back';
+        authHelp.innerText = 'Students can use the email and registration number issued by their tutor.';
+        passwordLabel.innerText = 'Password or Registration Number';
         authSubmitBtn.innerText = 'LOGIN';
     };
 
-    authForm.onsubmit = (e) => {
-        if (authMode.value === 'register') {
-            e.preventDefault();
-            const selectedRole = document.querySelector('input[name="role"]:checked').value;
-            document.getElementById('modalRoleText').innerText = selectedRole.toUpperCase();
-            roleModal.show();
-        }
-    };
+    registerTab.onclick = showRegister;
+    loginTab.onclick = showLogin;
 
-    document.getElementById('finalSubmitBtn').onclick = () => {
-        authForm.submit();
-    };
+    if (document.querySelector('[data-initial-mode="register"]')) {
+        showRegister();
+    }
 </script>
 {% endblock %}

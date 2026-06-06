@@ -1,59 +1,154 @@
-# Aptitude Kenya - Excellence in Digital Assessments
+# Aptitude Kenya
 
-**Aptitude Kenya** is a specialized, secure, and scalable Computer-Based Testing (CBT) platform tailored for the Kenyan educational landscape. It bridges the gap between traditional teaching and modern examination methods with a focus on integrity, transparency, and ease of use for both Tutors and Students.
+Aptitude Kenya is being rebuilt as a professional mobile-first online examination platform for Kenyan tutors, students, and administrators.
 
-## ✨ Key Features
+The target product supports tutor-created assessments, student credential provisioning, pay-per-student M-Pesa billing, subscriptions, proctoring controls, reminders, calendars, todos, analytics, and Heroku deployment.
 
-* **Dual-Role Authentication**: Unified login/register system with explicit role confirmation (Student vs. Tutor) to ensure data integrity and prevent account type errors.
-* **Modern Minimalist UI**: Built with a "Corporate Minimalist" aesthetic—using thin borders (1px), subtle Emerald & Slate tones, and high-quality typography (Inter font).
-* **Tutor Control**: Dedicated dashboards for educators to manage classrooms, host exams, and monitor student progress in real-time.
-* **Student Portals**: Fully responsive interface allowing students to take exams securely across all devices—mobile, tablet, or desktop.
-* **Real-time Analytics**: Instant auto-grading and institutional performance tracking to identify learning gaps immediately.
-* **Security Focused**: Designed to minimize exam malpractice through secure proctoring environments and tutor-led session management.
+## Current Status
 
-## 🛠️ Tech Stack
+The project is in Phase 1: project rescue and foundation. See `DEVELOPMENT_PROCESS.md` for the full tracked roadmap.
 
-* **Backend**: Python 3.x / Django
-* **Frontend**: HTML5, CSS3 (Modern Minimalist Framework), JavaScript (ES6+)
-* **UI Components**: Bootstrap 5 
-* **Database**: PostgreSQL / SQLite
-* **Authentication**: Custom User Model (Email-based login)
+Implemented foundation items:
 
-## 🚀 Getting Started
+- Local virtual environment support.
+- Pinned Python dependencies in `requirements.txt`.
+- Environment-driven Django settings.
+- Development and production settings modules.
+- Heroku `Procfile`.
+- Heroku `.python-version`.
+- Whitenoise static-file support.
+- Local `.env` loading.
+- SQLite development database by default.
+- PostgreSQL support through `DATABASE_URL`.
+- Initial Celery app entrypoint for production workers.
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/saulnyongesa/aptitude-kenya.git
-    ```
+Implemented account items:
 
-2.  **Set up virtual environment**:
-    ```bash
-    cd aptitude-kenya
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
+- Admin, tutor, and student roles.
+- Tutor self-registration.
+- Tutor profile and student profile records.
+- Tutor-provisioned student accounts.
+- Student login using email plus registration number.
+- Role-aware dashboard routing.
+- Separate portal landing page for returning tutors and students.
+- Password reset pages.
+- Tutor-side student credential reset.
+- Account suspension flag for admin control.
 
-3.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+Implemented landing page items:
 
-4.  **Run Migrations**:
-    ```bash
-    python manage.py makemigrations
-    python manage.py migrate
-    ```
+- Mobile-first public landing page.
+- Tutor workflow messaging.
+- Student portal messaging.
+- KES 5 pay-per-student pricing preview.
+- Public billing messaging without exposing payment methods before checkout.
+- Anti-cheating and violation policy messaging.
+- Contact form and responsive footer.
 
-5.  **Start the server**:
-    ```bash
-    python manage.py runserver
-    ```
+Implemented tutor workflow items:
 
-## 🎨 Design Philosophy
-Aptitude Kenya moves away from aggressive "Neo-brutalist" styles toward a **Clean-Border UX**. By utilizing 1px borders, 12px border-radius, and a specific Emerald Green (`#10b981`) palette, the platform fosters a calm, professional environment suitable for high-stakes academic testing.
+- Tutor dashboard overview.
+- Classroom creation, editing, and archiving.
+- Tutor-owned student creation.
+- Classroom-level student creation and assignment.
+- CSV/XLSX student bulk import.
+- Student search/filtering.
+- Student credential reset.
+- Classroom-level performance overview placeholder.
+- Ownership tests for tutor-only classroom access.
 
-## 📜 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## Local Setup
 
----
-*Built with precision to serve the Kenyan Education Sector.*
+From the project root:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+python manage.py migrate
+python manage.py runserver
+```
+
+Important local URLs:
+
+- Marketing website: `http://127.0.0.1:8000/`
+- Account portal: `http://127.0.0.1:8000/portal/`
+- Login/signup form: `http://127.0.0.1:8000/auth/`
+
+The intended production split is a public website for information and a separate portal domain such as `portal.aptitudekenya.ac.ke` for account access.
+
+If the virtual environment does not exist yet:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+## Settings
+
+Local development uses:
+
+```text
+config.settings.development
+```
+
+Production uses:
+
+```text
+config.settings.production
+```
+
+The default `manage.py`, `asgi.py`, and `wsgi.py` entrypoints point to development settings unless `DJANGO_SETTINGS_MODULE` is explicitly set.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` for local development.
+
+Important variables:
+
+- `SECRET_KEY`
+- `DEBUG`
+- `ALLOWED_HOSTS`
+- `DATABASE_URL`
+- `REDIS_URL`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `MPESA_CONSUMER_KEY`
+- `MPESA_CONSUMER_SECRET`
+- `MPESA_SHORTCODE`
+- `MPESA_PASSKEY`
+
+SQLite is used locally when `DATABASE_URL` is empty.
+
+## Background Tasks
+
+Development will use a Python threading backend once the task dispatch layer is implemented.
+
+Production will use Celery and Redis. The production settings fail loudly if Celery is selected but `REDIS_URL` is missing.
+
+Application code should call one internal task dispatch API in future phases instead of calling `threading.Thread` or Celery directly.
+
+## Deployment Direction
+
+The intended production platform is Heroku with:
+
+- Heroku PostgreSQL
+- Heroku Redis
+- Cloudinary
+- M-Pesa Daraja API
+- Gunicorn
+- Whitenoise
+- Celery worker dyno
+
+## Verification
+
+Run:
+
+```powershell
+python manage.py check
+python manage.py migrate
+```
+
+Both commands should pass on a fresh local setup.
