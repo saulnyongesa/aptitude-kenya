@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ assessment.title }}{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">{{ assessment.get_assessment_type_display }} Builder</p>
+                <h1 class="fw-bold mb-1">{{ assessment.title }}</h1>
+                <p class="text-secondary mb-0">{{ assessment.classroom.name }} · {{ assessment.get_status_display }} · {{ assessment.questions.count }} questions · {{ assessment.total_marks }} marks</p>
+            </div>
+            <div class="d-flex gap-2 align-items-start">
+                <a href="{% url 'assessment_edit' assessment.id %}" class="btn btn-outline-dark">Edit Settings</a>
+                <form method="post" action="{% url 'assessment_publish' assessment.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-custom" type="submit">Publish</button>
+                </form>
+            </div>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Add Section</h4>
+                    <form method="post" action="{% url 'assessment_add_section' assessment.id %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Title</label>
+                            <input class="form-control p-3 bg-light border-0" name="title" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Order</label>
+                            <input class="form-control p-3 bg-light border-0" type="number" name="order" value="0" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Instructions</label>
+                            <textarea class="form-control p-3 bg-light border-0" name="instructions" rows="3"></textarea>
+                        </div>
+                        <button class="btn btn-outline-dark w-100" type="submit">ADD SECTION</button>
+                    </form>
+                </div>
+
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Bulk Upload</h4>
+                    <p class="text-secondary small">Columns: section, question_type, text, marks, correct_labels, explanation, media_url, choice_a to choice_f.</p>
+                    <form method="post" enctype="multipart/form-data" action="{% url 'assessment_import_questions' assessment.id %}">
+                        {% csrf_token %}
+                        <input class="form-control mb-3" type="file" name="file" accept=".csv,.xlsx" required>
+                        <button class="btn btn-outline-dark w-100" type="submit">IMPORT QUESTIONS</button>
+                    </form>
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Question Bank</h4>
+                    {% if bank_items %}
+                        <form method="post" action="{% url 'assessment_add_from_bank' assessment.id %}">
+                            {% csrf_token %}
+                            <select class="form-select mb-3" name="bank_item_id" required>
+                                {% for item in bank_items %}
+                                    <option value="{{ item.id }}">{{ item.title }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-outline-dark w-100" type="submit">ADD FROM BANK</button>
+                        </form>
+                    {% else %}
+                        <p class="text-secondary mb-0">Reusable questions you save will appear here.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Add Question</h4>
+                    <form method="post" action="{% url 'assessment_add_question' assessment.id %}">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Type</label>
+                                <select class="form-select p-3 bg-light border-0" name="question_type">
+                                    <option value="single_choice">Single choice</option>
+                                    <option value="multiple_choice">Multiple choice</option>
+                                    <option value="true_false">True/false</option>
+                                    <option value="short_answer">Short answer</option>
+                                    <option value="essay">Essay</option>
+                                    <option value="file_upload">File upload</option>
+                                    <option value="passage">Passage based</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Section</label>
+                                <select class="form-select p-3 bg-light border-0" name="section_id">
+                                    <option value="">No section</option>
+                                    {% for section in assessment.sections.all %}
+                                        <option value="{{ section.id }}">{{ section.title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold">Marks</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" step="0.01" name="marks" value="1" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold">Order</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" name="order" value="0" min="0">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Question Text</label>
+                                <textarea class="form-control p-3 bg-light border-0" name="text" rows="4" required></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Media URL</label>
+                                <input class="form-control p-3 bg-light border-0" name="media_url" placeholder="Cloudinary URL">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Correct Labels</label>
+                                <input class="form-control p-3 bg-light border-0" name="correct_labels" placeholder="A or A,D">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Explanation</label>
+                                <textarea class="form-control p-3 bg-light border-0" name="explanation" rows="2"></textarea>
+                            </div>
+                            <div class="col-md-4"><input class="form-control" name="choice_a" placeholder="Choice A"></div>
+                            <div class="col-md-4"><input class="form-control" name="choice_b" placeholder="Choice B"></div>
+                            <div class="col-md-4"><input class="form-control" name="choice_c" placeholder="Choice C"></div>
+                            <div class="col-md-4"><input class="form-control" name="choice_d" placeholder="Choice D"></div>
+                            <div class="col-md-4"><input class="form-control" name="choice_e" placeholder="Choice E"></div>
+                            <div class="col-md-4"><input class="form-control" name="choice_f" placeholder="Choice F"></div>
+                            <div class="col-12">
+                                <label class="form-check"><input class="form-check-input" type="checkbox" name="reusable_in_bank"> Save to question bank</label>
+                            </div>
+                            <div class="col-12">
+                                <button class="btn btn-custom w-100 py-3" type="submit">ADD QUESTION</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Questions</h4>
+                    {% if assessment.questions.all %}
+                        {% for question in assessment.questions.all %}
+                            <div class="border rounded-3 p-3 mb-3">
+                                <div class="d-flex justify-content-between gap-3">
+                                    <div>
+                                        <p class="small text-muted mb-1">{{ question.get_question_type_display }} · {{ question.marks }} marks</p>
+                                        <h6 class="fw-bold mb-2">Q{{ question.order }}. {{ question.text|truncatechars:160 }}</h6>
+                                        {% if question.media_url %}<p class="small mb-2"><a href="{{ question.media_url }}">Media attachment</a></p>{% endif %}
+                                    </div>
+                                    <span class="badge text-bg-light align-self-start">{{ question.correct_labels|default:"Manual" }}</span>
+                                </div>
+                                {% if question.choices.all %}
+                                    <div class="row g-2 mt-2">
+                                        {% for choice in question.choices.all %}
+                                            <div class="col-md-6 small"><strong>{{ choice.label }}.</strong> {{ choice.text }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-secondary mb-0">No questions yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

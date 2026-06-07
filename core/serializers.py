@@ -35,7 +35,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ['id', 'text', 'choices', 'order']
+        fields = ['id', 'text', 'question_type', 'media_url', 'marks', 'choices', 'order']
         # Note: We EXCLUDE 'correct_labels' here so students can't inspect 
         # the JSON in the browser to find the answer!
 
@@ -45,8 +45,9 @@ class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
         fields = [
-            'id', 'title', 'start_time', 'end_time', 'attempts_allowed', 
-            'back_btn_enabled', 'show_results_immediately', 'question_count'
+            'id', 'title', 'assessment_type', 'status', 'start_time', 'end_time',
+            'duration_minutes', 'attempts_allowed', 'back_btn_enabled',
+            'show_results_immediately', 'question_count'
         ]
 
 # --- 3. Classroom Serializer ---

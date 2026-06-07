@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if assessment %}Edit Assessment{% else %}New Assessment{% endif %}{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="bk-border p-4 p-md-5">
+                    <p class="text-uppercase small fw-bold text-success mb-1">Assessment Builder</p>
+                    <h1 class="fw-bold mb-4">{% if assessment %}Edit Assessment{% else %}New Assessment{% endif %}</h1>
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label small fw-bold">Title</label>
+                                <input class="form-control p-3 bg-light border-0" name="title" value="{{ form.initial.title }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Type</label>
+                                <select class="form-select p-3 bg-light border-0" name="assessment_type" required>
+                                    <option value="quiz" {% if form.initial.assessment_type == 'quiz' %}selected{% endif %}>Quiz</option>
+                                    <option value="assignment" {% if form.initial.assessment_type == 'assignment' %}selected{% endif %}>Assignment</option>
+                                    <option value="test" {% if not form.initial.assessment_type or form.initial.assessment_type == 'test' %}selected{% endif %}>Test</option>
+                                    <option value="cat" {% if form.initial.assessment_type == 'cat' %}selected{% endif %}>CAT</option>
+                                    <option value="exam" {% if form.initial.assessment_type == 'exam' %}selected{% endif %}>Exam</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Classroom</label>
+                                <select class="form-select p-3 bg-light border-0" name="classroom_id" required>
+                                    {% for classroom in classrooms %}
+                                        <option value="{{ classroom.id }}" {% if form.initial.classroom_id == classroom.id %}selected{% endif %}>{{ classroom.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Start</label>
+                                <input class="form-control p-3 bg-light border-0" type="datetime-local" name="start_time" value="{{ form.initial.start_time }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">End</label>
+                                <input class="form-control p-3 bg-light border-0" type="datetime-local" name="end_time" value="{{ form.initial.end_time }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Duration</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" name="duration_minutes" value="{{ form.initial.duration_minutes|default:'60' }}" min="1" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Total Marks</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" step="0.01" name="total_marks" value="{{ form.initial.total_marks|default:'0' }}" min="0" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Pass Mark</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" step="0.01" name="pass_mark" value="{{ form.initial.pass_mark|default:'0' }}" min="0" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Attempts</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" name="attempts_allowed" value="{{ form.initial.attempts_allowed|default:'1' }}" min="1" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Instructions</label>
+                                <textarea class="form-control p-3 bg-light border-0" name="instructions" rows="4">{{ form.initial.instructions }}</textarea>
+                            </div>
+                            <div class="col-12">
+                                <div class="row g-2">
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="back_btn_enabled" {% if form.initial.back_btn_enabled %}checked{% endif %}> Back button</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="allow_late_submission" {% if form.initial.allow_late_submission %}checked{% endif %}> Late submission</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="show_results_immediately" {% if form.initial.show_results_immediately %}checked{% endif %}> Show results</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="show_answers" {% if form.initial.show_answers %}checked{% endif %}> Show answers</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="randomize_questions" {% if form.initial.randomize_questions %}checked{% endif %}> Random questions</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="randomize_choices" {% if form.initial.randomize_choices %}checked{% endif %}> Random choices</label></div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <hr>
+                                <h5 class="fw-bold mb-3">Anti-Cheating Rules</h5>
+                                <div class="row g-2">
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="proctoring_enabled" {% if form.initial.proctoring_enabled %}checked{% endif %}> Enable proctoring</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="disable_copy_paste" {% if form.initial.disable_copy_paste %}checked{% endif %}> Disable copy/paste</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="disable_right_click" {% if form.initial.disable_right_click %}checked{% endif %}> Disable right click</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="disable_text_selection" {% if form.initial.disable_text_selection %}checked{% endif %}> Disable selection</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="detect_tab_switch" {% if form.initial.detect_tab_switch %}checked{% endif %}> Detect tab switching</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="detect_window_blur" {% if form.initial.detect_window_blur %}checked{% endif %}> Detect window blur</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="require_fullscreen" {% if form.initial.require_fullscreen %}checked{% endif %}> Require fullscreen</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="detect_fullscreen_exit" {% if form.initial.detect_fullscreen_exit %}checked{% endif %}> Detect fullscreen exit</label></div>
+                                    <div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="detect_refresh" {% if form.initial.detect_refresh %}checked{% endif %}> Detect refresh</label></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Violation Limit</label>
+                                <input class="form-control p-3 bg-light border-0" type="number" name="max_violation_warnings" value="{{ form.initial.max_violation_warnings|default:'3' }}" min="1">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <label class="form-check mb-3"><input class="form-check-input" type="checkbox" name="auto_submit_on_violation" {% if form.initial.auto_submit_on_violation %}checked{% endif %}> Auto-submit at limit</label>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <label class="form-check mb-3"><input class="form-check-input" type="checkbox" name="auto_disqualify_on_violation" {% if form.initial.auto_disqualify_on_violation %}checked{% endif %}> Disqualify at limit</label>
+                            </div>
+                            <div class="col-12">
+                                <button class="btn btn-custom w-100 py-3" type="submit">SAVE ASSESSMENT</button>
+                            </div>
+                        </div>
+                    </form>
+                    <a class="d-inline-block mt-3 text-secondary" href="{% if assessment %}{% url 'assessment_detail' assessment.id %}{% else %}{% url 'assessment_list' %}{% endif %}">Back</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

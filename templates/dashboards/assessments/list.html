@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Assessments{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Assessment Builder</p>
+                <h1 class="fw-bold mb-1">Assessments</h1>
+                <p class="text-secondary mb-0">Create quizzes, tests, assignments, CATs, and exams.</p>
+            </div>
+            <a href="{% url 'assessment_create' %}" class="btn btn-custom align-self-start"><i class="fas fa-plus"></i>New Assessment</a>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="bk-border p-4">
+            {% if assessments %}
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Classroom</th>
+                                <th>Questions</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for assessment in assessments %}
+                                <tr>
+                                    <td class="fw-semibold">{{ assessment.title }}</td>
+                                    <td>{{ assessment.get_assessment_type_display }}</td>
+                                    <td>{{ assessment.get_status_display }}</td>
+                                    <td>{{ assessment.classroom.name }}</td>
+                                    <td>{{ assessment.question_count }}</td>
+                                    <td class="text-end">
+                                        <a class="btn btn-outline-dark btn-sm" href="{% url 'assessment_detail' assessment.id %}">Open</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-secondary mb-0">No assessments yet. Create your first draft.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock content %}

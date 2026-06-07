@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Assessment Result{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="bk-border p-4 mb-4">
+            <p class="text-uppercase small fw-bold text-success mb-1">Submitted</p>
+            <h1 class="fw-bold mb-1">{{ submission.exam.title }}</h1>
+            <p class="text-secondary mb-0">{{ submission.exam.classroom.name }} · Attempt {{ submission.attempt_number }} · Submitted {{ submission.submitted_at|date:"M d, Y H:i" }}</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="bk-border p-4">
+                    {% if submission.is_disqualified %}
+                        <p class="small text-muted text-uppercase fw-bold mb-1">Status</p>
+                        <h2 class="fw-bold mb-1 text-danger">Disqualified</h2>
+                        <p class="text-secondary mb-0">{{ submission.disqualification_reason }}</p>
+                    {% elif submission.exam.show_results_immediately %}
+                        <p class="small text-muted text-uppercase fw-bold mb-1">Score</p>
+                        <h2 class="fw-bold mb-1">{{ submission.score }} / {{ submission.exam.total_marks }}</h2>
+                        <p class="text-secondary mb-0">Objective questions are graded automatically. Written questions may be updated after tutor review.</p>
+                    {% else %}
+                        <p class="small text-muted text-uppercase fw-bold mb-1">Score</p>
+                        <h2 class="fw-bold mb-1">Pending</h2>
+                        <p class="text-secondary mb-0">Your tutor will release results when ready.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Attempt Summary</h4>
+                    {% if submission.is_disqualified %}
+                        <p class="text-secondary mb-0">Answer details are unavailable because this attempt was disqualified.</p>
+                    {% elif submission.exam.show_results_immediately %}
+                        {% for answer in submission.answers.all %}
+                            <div class="border rounded-3 p-3 mb-3">
+                                <div class="d-flex justify-content-between gap-3">
+                                    <div>
+                                        <p class="small text-muted mb-1">{{ answer.question.get_question_type_display }}</p>
+                                        <h6 class="fw-bold mb-2">{{ answer.question.text }}</h6>
+                                        <p class="mb-0">{{ answer.selected_choices|default:"No answer" }}</p>
+                                    </div>
+                                    <span class="badge {% if answer.is_correct %}text-bg-success{% else %}text-bg-light{% endif %} align-self-start">{{ answer.awarded_marks }} mark(s)</span>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-secondary mb-0">No answers were recorded.</p>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-secondary mb-0">Answer details are hidden until your tutor releases results.</p>
+                    {% endif %}
+                </div>
+                <a href="{% url 'student_dashboard' %}" class="btn btn-outline-dark mt-3">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

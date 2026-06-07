@@ -9,6 +9,8 @@
             <p class="text-uppercase small fw-bold text-success mb-1">Tutor Dashboard</p>
             <h1 class="fw-bold mb-1">Welcome, {{ request.user.fullname }}</h1>
             <p class="text-secondary mb-0">Manage classrooms, student access, and readiness for assessments.</p>
+            <a href="{% url 'assessment_list' %}" class="btn btn-custom mt-3"><i class="fas fa-file-circle-plus"></i>Assessments</a>
+            <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark mt-3 ms-md-2"><i class="fas fa-receipt"></i>Billing</a>
         </div>
 
         {% if messages %}
@@ -43,8 +45,14 @@
             </div>
             <div class="col-md-4">
                 <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Archived</p>
-                    <h2 class="fw-bold mb-0">{{ overview.archived_count }}</h2>
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Billing</p>
+                    {% if active_subscription %}
+                        <h2 class="fw-bold mb-0">Active</h2>
+                        <p class="text-secondary small mb-0">Until {{ active_subscription.ends_at|date:"M d, Y" }}</p>
+                    {% else %}
+                        <h2 class="fw-bold mb-0">{{ pending_invoice_count }}</h2>
+                        <p class="text-secondary small mb-0">Pending invoice(s)</p>
+                    {% endif %}
                 </div>
             </div>
         </div>

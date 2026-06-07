@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Subscription Plans{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Subscription Plans</p>
+                <h1 class="fw-bold mb-1">Choose Tutor Access</h1>
+                <p class="text-secondary mb-0">Plans can be configured by admins for monthly, termly, quarterly, or yearly billing.</p>
+            </div>
+            <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark align-self-start">Billing</a>
+        </div>
+
+        <div class="row g-4">
+            {% for plan in plans %}
+                <div class="col-lg-4 col-md-6">
+                    <div class="bk-border p-4 h-100">
+                        <p class="small text-uppercase fw-bold text-success mb-1">{{ plan.get_anti_cheating_level_display }}</p>
+                        <h4 class="fw-bold mb-2">{{ plan.name }}</h4>
+                        <p class="text-secondary small">{{ plan.description|default:"Subscription access for tutor assessments." }}</p>
+                        <h2 class="fw-bold mb-1">{{ plan.currency }} {{ plan.price }}</h2>
+                        <p class="text-secondary small mb-3">{{ plan.duration_months }} month(s){% if plan.discount_percent %} · {{ plan.discount_percent }}% discount{% endif %}</p>
+                        <form method="post" action="{% url 'start_subscription' plan.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-custom w-100" type="submit">Create Invoice</button>
+                        </form>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="bk-border p-4">
+                        <p class="text-secondary mb-0">No active subscription plans have been configured yet.</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock content %}

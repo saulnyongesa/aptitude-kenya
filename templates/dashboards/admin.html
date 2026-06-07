@@ -8,7 +8,7 @@
         <div class="mb-4">
             <p class="text-uppercase small fw-bold text-success mb-1">Platform Admin</p>
             <h1 class="fw-bold mb-1">Operations Overview</h1>
-            <p class="text-secondary mb-0">Early account governance dashboard for Phase 2.</p>
+            <p class="text-secondary mb-0">Account governance and revenue overview.</p>
         </div>
         <div class="row g-3">
             <div class="col-md-4">
@@ -27,6 +27,26 @@
                 <div class="bk-border p-4">
                     <p class="small text-muted text-uppercase fw-bold mb-1">Suspended</p>
                     <h2 class="fw-bold mb-0">{{ suspended_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Paid Revenue</p>
+                    <h2 class="fw-bold mb-0">KES {{ paid_revenue }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Pending Revenue</p>
+                    <h2 class="fw-bold mb-0">KES {{ pending_revenue }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="bk-border p-4">
+                    <p class="small text-muted text-uppercase fw-bold mb-1">Paid Invoices</p>
+                    <h2 class="fw-bold mb-0">{{ paid_invoice_count }}</h2>
                 </div>
             </div>
         </div>
