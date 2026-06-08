@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Assessment Report{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Assessment Report</p>
+                <h1 class="fw-bold mb-1">{{ assessment.title }}</h1>
+                <p class="text-secondary mb-0">{{ assessment.classroom.name }} · {{ assessment.get_assessment_type_display }}</p>
+            </div>
+            <div class="d-flex gap-2 align-self-md-start">
+                <a class="btn btn-custom" href="{% url 'assessment_report_excel_export' assessment.id %}"><i class="fas fa-file-excel"></i>Excel</a>
+                <a class="btn btn-outline-dark" href="{% url 'assessment_report_export' assessment.id %}"><i class="fas fa-file-csv"></i>CSV</a>
+                <button class="btn btn-outline-dark" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Done</p><h2 class="fw-bold mb-0">{{ summary.completed_count }}</h2></div></div>
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Completion</p><h2 class="fw-bold mb-0">{{ summary.completion_rate }}%</h2></div></div>
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Avg</p><h2 class="fw-bold mb-0">{{ summary.average_score|floatformat:1 }}</h2></div></div>
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Pass</p><h2 class="fw-bold mb-0">{{ summary.pass_rate }}%</h2></div></div>
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Violations</p><h2 class="fw-bold mb-0">{{ summary.violation_count }}</h2></div></div>
+            <div class="col-6 col-lg-2"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">DQ</p><h2 class="fw-bold mb-0">{{ summary.disqualified_count }}</h2></div></div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Submissions</h4>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Student</th><th>Attempt</th><th>Score</th><th>Status</th><th>Submitted</th></tr></thead>
+                            <tbody>
+                                {% for submission in submission_rows %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ submission.student.fullname }}</td>
+                                        <td>{{ submission.attempt_number }}</td>
+                                        <td>{{ submission.score|floatformat:1 }}</td>
+                                        <td>{% if submission.is_disqualified %}Disqualified{% else %}Completed{% endif %}</td>
+                                        <td>{{ submission.submitted_at|date:"M d, Y H:i" }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="5" class="text-secondary">No submissions yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Question Difficulty</h4>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Question</th><th>Answered</th><th>Correct</th><th>Correct Rate</th><th>Avg Marks</th></tr></thead>
+                            <tbody>
+                                {% for row in question_rows %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.question.text|striptags|truncatechars:80 }}</td>
+                                        <td>{{ row.answer_count }}</td>
+                                        <td>{{ row.correct_count }}</td>
+                                        <td>{{ row.correct_rate }}%</td>
+                                        <td>{{ row.average_marks|floatformat:1 }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="5" class="text-secondary">No questions yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Score Distribution</h4>
+                    {% for bucket in score_distribution %}
+                        <div class="d-flex justify-content-between border-bottom py-2">
+                            <span>{{ bucket.label }}%</span>
+                            <strong>{{ bucket.count }}</strong>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Violation Summary</h4>
+                    {% for row in violation_rows %}
+                        <div class="d-flex justify-content-between border-bottom py-2">
+                            <span>{{ row.label }}</span>
+                            <strong>{{ row.count }}</strong>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No violations recorded.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

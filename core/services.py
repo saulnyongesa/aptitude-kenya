@@ -294,9 +294,19 @@ def get_or_create_assessment_invoice(*, tutor, exam):
 
 
 def create_subscription_invoice(*, tutor, plan):
-    """Create a pending invoice for a tutor subscription plan."""
+    """Create a pending invoice for a tutor subscription plan.
+
+    A tutor cannot buy the same active plan again. When they choose a
+    different plan, unused value from the current plan is carried as an
+    upgrade credit on the new invoice.
+    """
+    active_subscription = get_active_subscription(tutor=tutor)
+    if active_subscription and active_subscription.plan_id == plan.id:
+        raise ValueError("You already have this subscription plan active.")
     subtotal = plan.price
     discount_amount = (subtotal * plan.discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+    upgrade_credit = estimate_subscription_upgrade_credit(tutor=tutor, new_plan=plan)
+    discount_amount = min(subtotal, discount_amount + upgrade_credit)
     total_amount = subtotal - discount_amount
     return Invoice.objects.create(
         tutor=tutor,
@@ -308,8 +318,32 @@ def create_subscription_invoice(*, tutor, plan):
         subtotal=subtotal,
         discount_amount=discount_amount,
         total_amount=total_amount,
-        notes=f"{plan.name} subscription for {plan.duration_months} month(s).",
+        notes=_subscription_invoice_notes(plan=plan, upgrade_credit=upgrade_credit),
     )
+
+
+def estimate_subscription_upgrade_credit(*, tutor, new_plan):
+    """Estimate unused current-plan value to deduct from a different plan."""
+    active_subscription = get_active_subscription(tutor=tutor)
+    if not active_subscription or active_subscription.plan_id == new_plan.id:
+        return Decimal("0.00")
+    if not active_subscription.starts_at or not active_subscription.ends_at:
+        return Decimal("0.00")
+    now = timezone.now()
+    total_seconds = Decimal(str((active_subscription.ends_at - active_subscription.starts_at).total_seconds()))
+    remaining_seconds = Decimal(str(max(0, (active_subscription.ends_at - now).total_seconds())))
+    if total_seconds <= 0 or remaining_seconds <= 0:
+        return Decimal("0.00")
+    credit = active_subscription.plan.price * (remaining_seconds / total_seconds)
+    return min(new_plan.price, credit.quantize(Decimal("0.01")))
+
+
+def _subscription_invoice_notes(*, plan, upgrade_credit):
+    """Describe subscription billing adjustments for the invoice record."""
+    notes = f"{plan.name} subscription for {plan.duration_months} month(s)."
+    if upgrade_credit:
+        notes += f" Includes KES {upgrade_credit} unused subscription credit."
+    return notes
 
 
 def get_active_subscription(*, tutor):
@@ -1248,7 +1282,7 @@ def _score_distribution(*, completed, exam):
     ]
     total_marks = float(exam.total_marks or 0)
     for submission in completed:
-        percent_score = 0 if total_marks <= 0 else min(100, max(0, (submission.score / total_marks) * 100))
+        percent_score = int(0 if total_marks <= 0 else min(100, max(0, (submission.score / total_marks) * 100)))
         for bucket in buckets:
             if bucket["minimum"] <= percent_score <= bucket["maximum"]:
                 bucket["count"] += 1

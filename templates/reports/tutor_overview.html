@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}Tutor Reports{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Reports</p>
+                <h1 class="fw-bold mb-1">Performance Overview</h1>
+                <p class="text-secondary mb-0">Classroom results, completion, score trends, and integrity events.</p>
+            </div>
+            <button class="btn btn-outline-dark align-self-md-start" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Classrooms</p><h2 class="fw-bold mb-0">{{ summary.classroom_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Assessments</p><h2 class="fw-bold mb-0">{{ summary.assessment_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Completion</p><h2 class="fw-bold mb-0">{{ summary.completion_rate }}%</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Avg Score</p><h2 class="fw-bold mb-0">{{ summary.average_score|floatformat:1 }}</h2></div></div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Assessments</h4>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Assessment</th><th>Classroom</th><th>Done</th><th>Completion</th><th>Avg</th><th></th></tr></thead>
+                            <tbody>
+                                {% for row in assessment_rows %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.assessment.title }}</td>
+                                        <td>{{ row.assessment.classroom.name }}</td>
+                                        <td>{{ row.completed_count }}/{{ row.assigned_count }}</td>
+                                        <td>{{ row.completion_rate }}%</td>
+                                        <td>{{ row.average_score|floatformat:1 }}</td>
+                                        <td class="text-end"><a class="btn btn-outline-dark btn-sm" href="{% url 'assessment_report' row.assessment.id %}">Open</a></td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="6" class="text-secondary">No assessments yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Classrooms</h4>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Classroom</th><th>Students</th><th>Assessments</th><th>Completion</th><th>Avg</th><th></th></tr></thead>
+                            <tbody>
+                                {% for row in classroom_rows %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.classroom.name }}</td>
+                                        <td>{{ row.student_count }}</td>
+                                        <td>{{ row.assessment_count }}</td>
+                                        <td>{{ row.completion_rate }}%</td>
+                                        <td>{{ row.average_score|floatformat:1 }}</td>
+                                        <td class="text-end"><a class="btn btn-outline-dark btn-sm" href="{% url 'classroom_report' row.classroom.id %}">Open</a></td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="6" class="text-secondary">No classroom data yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="bk-border p-4 mb-4">
+                    <h4 class="fw-bold mb-3">Integrity Events</h4>
+                    {% for row in violation_rows %}
+                        <div class="d-flex justify-content-between border-bottom py-2">
+                            <span>{{ row.label }}</span>
+                            <strong>{{ row.count }}</strong>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No violations recorded.</p>
+                    {% endfor %}
+                </div>
+
+                <div class="bk-border p-4">
+                    <h4 class="fw-bold mb-3">Recent Results</h4>
+                    {% for submission in recent_submissions %}
+                        <div class="border-bottom pb-2 mb-2">
+                            <p class="fw-semibold mb-1">{{ submission.student.fullname }}</p>
+                            <p class="text-secondary small mb-0">{{ submission.exam.title }} · {{ submission.score|floatformat:1 }}</p>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">Completed results will appear here.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

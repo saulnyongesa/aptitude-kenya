@@ -149,9 +149,23 @@ Important browser limitation:
 
 - Normal browsers cannot fully prevent operating-system screenshots. The platform detects related suspicious behavior such as focus changes and fullscreen exits, but it must not promise perfect screenshot blocking.
 
-Remaining proctoring enhancements:
+## Phase 10 Reports And Analytics
 
-- Rich tutor-facing violation reports are tracked in Phase 10.
+Implemented reporting items:
+
+- Tutor performance overview across classrooms and assessments.
+- Classroom reports with student progress, completion, average score, disqualification, and violation counts.
+- Assessment reports with pass rate, completion rate, score distribution, question difficulty, and proctoring violation summaries.
+- Student report page with personal progress and result history.
+- Admin platform analytics for usage, revenue, tutor activity, submissions, and integrity events.
+- Native Excel `.xlsx` export and CSV export for assessment reports.
+- Printable report pages that can be saved to PDF through the browser print flow.
+- Tests for report aggregation, ownership scope, student result visibility, CSV export, and Excel export.
+
+Remaining reporting enhancements:
+
+- Native server-side PDF generation.
+- Background generation for very large reports after the Phase 12 task-dispatch layer is in place.
 - Strong concurrent-session enforcement is a future security-hardening task.
 
 ## Local Setup
@@ -172,7 +186,9 @@ Important local URLs:
 - Account portal: `http://127.0.0.1:8000/portal/`
 - Login/signup form: `http://127.0.0.1:8000/auth/`
 - Tutor billing: `http://127.0.0.1:8000/dashboard/tutor/billing/`
+- Tutor reports: `http://127.0.0.1:8000/dashboard/tutor/reports/`
 - Student dashboard: `http://127.0.0.1:8000/dashboard/student/`
+- Student reports: `http://127.0.0.1:8000/dashboard/student/reports/`
 - Student attempt pages are opened from active assessments on the student dashboard.
 
 The intended production split is a public website for information and a separate portal domain such as `portal.aptitudekenya.ac.ke` for account access.

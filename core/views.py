@@ -1,20 +1,25 @@
 import json
+import csv
+import json
+from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Q, Sum
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from openpyxl import Workbook
 from .forms import AssessmentForm, BankQuestionSelectForm, BulkQuestionImportForm, BulkStudentImportForm, ClassroomForm, LoginForm, QuestionForm, QuestionSectionForm, StudentProvisionForm, StudentSearchForm, StudentTodoForm, TutorRegistrationForm
 from .models import Classroom, Exam, Invoice, Payment, ProctorLog, QuestionBankItem, SiteStatistic, ContactMessage, StudentNotification, StudentProfile, StudentTodo, Submission, SubscriptionPlan, User
-from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib import messages
 from .decorators import role_required
-from .services import activate_subscription_from_invoice, add_bank_question_to_assessment, archive_classroom, assign_student_to_classroom, assessment_can_publish_without_invoice, build_attempt_context, complete_student_todo, create_assessment, create_classroom, create_mpesa_payment_attempt, create_question_from_form, create_question_section, create_student_account, create_student_todo, create_subscription_invoice, create_tutor_account, get_active_subscription, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_for_taking, get_student_dashboard_context, handle_mpesa_stk_callback, import_questions_from_file, import_students_from_file, mark_invoice_paid, mark_student_notification_read, publish_assessment, record_proctor_violation, reset_student_credentials, save_submission_answers, submit_assessment_attempt, update_assessment, update_classroom
+from .services import activate_subscription_from_invoice, add_bank_question_to_assessment, archive_classroom, assign_student_to_classroom, assessment_can_publish_without_invoice, build_attempt_context, complete_student_todo, create_assessment, create_classroom, create_mpesa_payment_attempt, create_question_from_form, create_question_section, create_student_account, create_student_todo, create_subscription_invoice, create_tutor_account, estimate_subscription_upgrade_credit, get_active_subscription, get_admin_report_context, get_assessment_report_context, get_classroom_report_context, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_for_taking, get_student_dashboard_context, get_student_report_context, get_tutor_report_context, handle_mpesa_stk_callback, import_questions_from_file, import_students_from_file, mark_invoice_paid, mark_student_notification_read, publish_assessment, record_proctor_violation, reset_student_credentials, save_submission_answers, submit_assessment_attempt, tutor_assessment_export_rows, update_assessment, update_classroom
 
 def index(request):
     # Fetch stats from the SiteStatistic model (Singleton-style)
@@ -111,14 +116,15 @@ def dashboard(request):
 def admin_dashboard(request):
     """Early platform dashboard for administrators."""
     paid_invoices = Invoice.objects.filter(status=Invoice.STATUS_PAID)
-    context = {
+    context = get_admin_report_context()
+    context.update({
         'tutor_count': User.objects.filter(role=User.ROLE_TUTOR).count(),
         'student_count': User.objects.filter(role=User.ROLE_STUDENT).count(),
         'suspended_count': User.objects.filter(is_suspended=True).count(),
         'paid_revenue': paid_invoices.aggregate(total=Sum('total_amount'))['total'] or 0,
         'pending_revenue': Invoice.objects.filter(status=Invoice.STATUS_PENDING).aggregate(total=Sum('total_amount'))['total'] or 0,
         'paid_invoice_count': paid_invoices.count(),
-    }
+    })
     return render(request, 'dashboards/admin.html', context)
 
 
@@ -465,6 +471,64 @@ def assessment_publish(request, exam_id):
 
 
 @role_required(User.ROLE_TUTOR)
+def tutor_reports(request):
+    """Show tutor-wide classroom, assessment, performance, and integrity reports."""
+    return render(request, 'reports/tutor_overview.html', get_tutor_report_context(tutor=request.user))
+
+
+@role_required(User.ROLE_TUTOR)
+def classroom_report(request, classroom_id):
+    """Show performance analytics for one tutor-owned classroom."""
+    classroom = get_object_or_404(Classroom, id=classroom_id, tutor=request.user)
+    return render(request, 'reports/classroom_report.html', get_classroom_report_context(tutor=request.user, classroom=classroom))
+
+
+@role_required(User.ROLE_TUTOR)
+def assessment_report(request, exam_id):
+    """Show score, question difficulty, completion, and proctoring analytics."""
+    exam = get_object_or_404(Exam.objects.select_related('classroom'), id=exam_id, classroom__tutor=request.user)
+    return render(request, 'reports/assessment_report.html', get_assessment_report_context(tutor=request.user, exam=exam))
+
+
+@role_required(User.ROLE_TUTOR)
+def assessment_report_export(request, exam_id):
+    """Download an Excel-compatible CSV export for an assessment report."""
+    exam = get_object_or_404(Exam, id=exam_id, classroom__tutor=request.user)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="assessment-{exam.id}-report.csv"'
+    writer = csv.writer(response)
+    writer.writerows(tutor_assessment_export_rows(tutor=request.user, exam=exam))
+    return response
+
+
+@role_required(User.ROLE_TUTOR)
+def assessment_report_excel_export(request, exam_id):
+    """Download a native Excel workbook for an assessment report."""
+    exam = get_object_or_404(Exam, id=exam_id, classroom__tutor=request.user)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Assessment Report"
+    for row in tutor_assessment_export_rows(tutor=request.user, exam=exam):
+        sheet.append([_excel_safe_value(value) for value in row])
+    for column_cells in sheet.columns:
+        width = max(len(str(cell.value or "")) for cell in column_cells)
+        sheet.column_dimensions[column_cells[0].column_letter].width = min(max(width + 2, 12), 42)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="assessment-{exam.id}-report.xlsx"'
+    return response
+
+
+def _excel_safe_value(value):
+    """Convert values that Excel cannot store directly."""
+    if hasattr(value, "tzinfo") and value.tzinfo:
+        return timezone.localtime(value).replace(tzinfo=None)
+    return value
+
+
+@role_required(User.ROLE_TUTOR)
 def billing_overview(request):
     """Show tutor invoices and subscription state."""
     invoices = Invoice.objects.filter(tutor=request.user).select_related('assessment', 'subscription_plan')[:30]
@@ -483,7 +547,15 @@ def billing_overview(request):
 def subscription_plans(request):
     """List active subscription plans configured by admins."""
     plans = SubscriptionPlan.objects.filter(is_active=True).order_by('price', 'duration_months')
-    return render(request, 'billing/subscription_plans.html', {'plans': plans})
+    active_subscription = get_active_subscription(tutor=request.user)
+    for plan in plans:
+        plan.is_current_plan = bool(active_subscription and active_subscription.plan_id == plan.id)
+        plan.upgrade_credit = estimate_subscription_upgrade_credit(tutor=request.user, new_plan=plan)
+    return render(
+        request,
+        'billing/subscription_plans.html',
+        {'plans': plans, 'active_subscription': active_subscription},
+    )
 
 
 @role_required(User.ROLE_TUTOR)
@@ -491,7 +563,11 @@ def start_subscription(request, plan_id):
     """Create a subscription invoice for the selected plan."""
     plan = get_object_or_404(SubscriptionPlan, id=plan_id, is_active=True)
     if request.method == 'POST':
-        invoice = create_subscription_invoice(tutor=request.user, plan=plan)
+        try:
+            invoice = create_subscription_invoice(tutor=request.user, plan=plan)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect('subscription_plans')
         messages.success(request, "Subscription invoice created.")
         return redirect('invoice_detail', invoice_id=invoice.id)
     return redirect('subscription_plans')
@@ -652,6 +728,12 @@ def student_dashboard(request):
     context = get_student_dashboard_context(student=request.user)
     context['todo_form'] = todo_form
     return render(request, 'dashboards/student.html', context)
+
+
+@role_required(User.ROLE_STUDENT)
+def student_reports(request):
+    """Show the signed-in student's assessment progress and released results."""
+    return render(request, 'reports/student_report.html', get_student_report_context(student=request.user))
 
 
 @role_required(User.ROLE_STUDENT)

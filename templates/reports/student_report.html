@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}My Reports{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">My Reports</p>
+                <h1 class="fw-bold mb-1">{{ request.user.fullname }}</h1>
+                <p class="text-secondary mb-0">{{ request.user.student_profile.school_name }} · {{ request.user.student_profile.registration_number }}</p>
+            </div>
+            <button class="btn btn-outline-dark align-self-md-start" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Completed</p><h2 class="fw-bold mb-0">{{ summary.completed_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Active</p><h2 class="fw-bold mb-0">{{ summary.active_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Pending</p><h2 class="fw-bold mb-0">{{ summary.pending_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Avg Score</p><h2 class="fw-bold mb-0">{{ summary.average_score|floatformat:1 }}</h2></div></div>
+        </div>
+
+        <div class="bk-border p-4">
+            <h4 class="fw-bold mb-3">Result History</h4>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Assessment</th><th>Classroom</th><th>Score</th><th>Status</th><th>Submitted</th></tr></thead>
+                    <tbody>
+                        {% for submission in submissions %}
+                            <tr>
+                                <td class="fw-semibold">{{ submission.exam.title }}</td>
+                                <td>{{ submission.exam.classroom.name }}</td>
+                                <td>{{ submission.score|floatformat:1 }}</td>
+                                <td>{% if submission.is_disqualified %}Disqualified{% else %}Completed{% endif %}</td>
+                                <td>{{ submission.submitted_at|date:"M d, Y H:i" }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="text-secondary">No completed results yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

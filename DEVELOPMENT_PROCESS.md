@@ -235,22 +235,22 @@ Exit gate:
 
 ## Phase 10: Reports And Analytics
 
-- [ ] Add tutor reports.
-- [ ] Add student reports.
-- [ ] Add class performance analytics.
-- [ ] Add question difficulty analysis.
-- [ ] Add completion-rate reporting.
-- [ ] Add score distribution.
-- [ ] Add violation reporting.
-- [ ] Add export to Excel.
-- [ ] Add export to PDF.
-- [ ] Add printable reports.
-- [ ] Add admin platform analytics.
-- [ ] Generate heavy reports through the task layer.
+- [x] Add tutor reports.
+- [x] Add student reports.
+- [x] Add class performance analytics.
+- [x] Add question difficulty analysis.
+- [x] Add completion-rate reporting.
+- [x] Add score distribution.
+- [x] Add violation reporting.
+- [x] Add export to Excel.
+- [~] Add export to PDF. Reports are printable/PDF-ready through the browser print flow; native server-generated PDF remains a later enhancement.
+- [x] Add printable reports.
+- [x] Add admin platform analytics.
+- [~] Generate heavy reports through the task layer. Report services are isolated for task execution; the thread/Celery task dispatcher is scheduled for Phase 12.
 
 Exit gate:
 
-- [ ] Tutors and admins can understand performance, usage, and integrity from dashboards and exports.
+- [x] Tutors and admins can understand performance, usage, and integrity from dashboards and exports.
 
 ## Phase 11: Admin Platform Management
 

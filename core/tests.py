@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import Choice, Classroom, Exam, Invoice, MpesaTransaction, Payment, ProctorLog, Question, QuestionBankItem, StudentAnswer, StudentNotification, StudentProfile, StudentReminder, StudentTodo, Submission, SubscriptionPlan, TutorProfile, TutorSubscription, User
-from .services import create_assessment, create_classroom, create_mpesa_payment_attempt, create_student_account, create_tutor_account, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_overview, handle_mpesa_stk_callback, mark_invoice_paid, record_proctor_violation, save_submission_answers, submit_assessment_attempt
+from .services import create_assessment, create_classroom, create_mpesa_payment_attempt, create_student_account, create_subscription_invoice, create_tutor_account, get_assessment_report_context, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_overview, handle_mpesa_stk_callback, mark_invoice_paid, record_proctor_violation, save_submission_answers, submit_assessment_attempt
 
 
 class AccountRoleTests(TestCase):
@@ -582,6 +582,56 @@ class BillingWorkflowTests(TestCase):
         self.assertTrue(TutorSubscription.objects.filter(tutor=self.tutor, plan=plan, status=TutorSubscription.STATUS_ACTIVE).exists())
         self.assertEqual(invoice.total_amount, 1080)
 
+    def test_current_subscription_plan_cannot_be_bought_again(self):
+        plan = SubscriptionPlan.objects.create(
+            name="Monthly Standard",
+            duration_months=1,
+            price=500,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STANDARD,
+        )
+        TutorSubscription.objects.create(
+            tutor=self.tutor,
+            plan=plan,
+            status=TutorSubscription.STATUS_ACTIVE,
+            starts_at=timezone.now() - timedelta(days=5),
+            ends_at=timezone.now() + timedelta(days=25),
+        )
+        self.client.force_login(self.tutor)
+
+        page = self.client.get(reverse("subscription_plans"))
+        response = self.client.post(reverse("start_subscription", args=[plan.id]))
+
+        self.assertContains(page, "Current Plan")
+        self.assertRedirects(response, reverse("subscription_plans"))
+        self.assertEqual(Invoice.objects.filter(tutor=self.tutor, subscription_plan=plan).count(), 0)
+
+    def test_subscription_upgrade_invoice_applies_unused_time_credit(self):
+        current_plan = SubscriptionPlan.objects.create(
+            name="Monthly Standard",
+            duration_months=1,
+            price=300,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STANDARD,
+        )
+        upgrade_plan = SubscriptionPlan.objects.create(
+            name="Quarterly Strict",
+            duration_months=3,
+            price=1200,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STRICT,
+        )
+        TutorSubscription.objects.create(
+            tutor=self.tutor,
+            plan=current_plan,
+            status=TutorSubscription.STATUS_ACTIVE,
+            starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() + timedelta(days=20),
+        )
+
+        invoice = create_subscription_invoice(tutor=self.tutor, plan=upgrade_plan)
+
+        self.assertGreater(invoice.discount_amount, 0)
+        self.assertLess(invoice.total_amount, upgrade_plan.price)
+        self.assertIn("unused subscription credit", invoice.notes)
+
     def test_mpesa_callback_marks_invoice_paid_idempotently(self):
         exam = self.create_ready_assessment()
         invoice = get_or_create_assessment_invoice(tutor=self.tutor, exam=exam)
@@ -1073,3 +1123,133 @@ class ProctoringWorkflowTests(TestCase):
         self.assertEqual(valid.status_code, 200)
         self.assertTrue(valid.json()["disqualified"])
         self.assertTrue(submission.is_disqualified)
+
+
+class ReportingWorkflowTests(TestCase):
+    """Cover Phase 10 tutor, student, export, and integrity analytics."""
+
+    def setUp(self):
+        self.tutor = create_tutor_account(
+            fullname="Report Tutor",
+            email="phase10-tutor@example.com",
+            password="StrongPass123!",
+        )
+        self.other_tutor = create_tutor_account(
+            fullname="Other Report Tutor",
+            email="phase10-other@example.com",
+            password="StrongPass123!",
+        )
+        self.classroom = create_classroom(tutor=self.tutor, name="Phase 10 Class")
+        self.student_one, _ = create_student_account(
+            tutor=self.tutor,
+            fullname="Report Student One",
+            email="phase10-one@example.com",
+            school_name="Test School",
+            registration_number="P10-001",
+        )
+        self.student_two, _ = create_student_account(
+            tutor=self.tutor,
+            fullname="Report Student Two",
+            email="phase10-two@example.com",
+            school_name="Test School",
+            registration_number="P10-002",
+        )
+        self.classroom.students.add(self.student_one, self.student_two)
+        self.exam = Exam.objects.create(
+            classroom=self.classroom,
+            title="Analytics Test",
+            assessment_type=Exam.TYPE_TEST,
+            status=Exam.STATUS_PUBLISHED,
+            duration_minutes=30,
+            total_marks=10,
+            pass_mark=5,
+            proctoring_enabled=True,
+        )
+        self.question = Question.objects.create(
+            exam=self.exam,
+            question_type=Question.TYPE_SINGLE_CHOICE,
+            text="Capital city?",
+            marks=10,
+            correct_labels="A",
+            order=1,
+        )
+        Choice.objects.create(question=self.question, label="A", text="Nairobi")
+        Choice.objects.create(question=self.question, label="B", text="Mombasa")
+        self.submission_one = Submission.objects.create(
+            student=self.student_one,
+            exam=self.exam,
+            completed=True,
+            score=10,
+            submitted_at=timezone.now(),
+        )
+        StudentAnswer.objects.create(
+            submission=self.submission_one,
+            question=self.question,
+            selected_choices="A",
+            awarded_marks=10,
+            is_correct=True,
+        )
+        self.submission_two = Submission.objects.create(
+            student=self.student_two,
+            exam=self.exam,
+            completed=True,
+            score=4,
+            submitted_at=timezone.now(),
+            is_disqualified=True,
+        )
+        StudentAnswer.objects.create(
+            submission=self.submission_two,
+            question=self.question,
+            selected_choices="B",
+            awarded_marks=0,
+            is_correct=False,
+        )
+        ProctorLog.objects.create(
+            student=self.student_two,
+            exam=self.exam,
+            submission=self.submission_two,
+            violation_type=ProctorLog.TYPE_TAB_SWITCH,
+            triggered_disqualification=True,
+        )
+
+    def test_assessment_report_aggregates_performance_and_integrity(self):
+        context = get_assessment_report_context(tutor=self.tutor, exam=self.exam)
+
+        self.assertEqual(context["summary"]["completed_count"], 2)
+        self.assertEqual(context["summary"]["completion_rate"], 100)
+        self.assertEqual(context["summary"]["pass_rate"], 50)
+        self.assertEqual(context["summary"]["disqualified_count"], 1)
+        self.assertEqual(context["question_rows"][0]["correct_rate"], 50)
+        self.assertEqual(context["violation_rows"][0]["count"], 1)
+
+    def test_tutor_report_view_is_scoped_to_owner(self):
+        self.client.force_login(self.tutor)
+        own = self.client.get(reverse("assessment_report", args=[self.exam.id]))
+
+        other_classroom = create_classroom(tutor=self.other_tutor, name="Other Class")
+        other_exam = Exam.objects.create(classroom=other_classroom, title="Other Test", duration_minutes=30)
+        blocked = self.client.get(reverse("assessment_report", args=[other_exam.id]))
+
+        self.assertEqual(own.status_code, 200)
+        self.assertEqual(blocked.status_code, 404)
+
+    def test_assessment_report_export_returns_csv(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("assessment_report_export", args=[self.exam.id]))
+        excel_response = self.client.get(reverse("assessment_report_excel_export", args=[self.exam.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/csv", response["Content-Type"])
+        self.assertIn("Report Student One", response.content.decode())
+        self.assertEqual(excel_response.status_code, 200)
+        self.assertIn("spreadsheetml.sheet", excel_response["Content-Type"])
+
+    def test_student_report_shows_only_signed_in_student_results(self):
+        self.client.force_login(self.student_one)
+
+        response = self.client.get(reverse("student_reports"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Analytics Test")
+        self.assertNotContains(response, "Report Student Two")

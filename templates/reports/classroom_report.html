@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Classroom Report{% endblock title %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+            <div>
+                <p class="text-uppercase small fw-bold text-success mb-1">Classroom Report</p>
+                <h1 class="fw-bold mb-1">{{ classroom.name }}</h1>
+                <p class="text-secondary mb-0">Student progress, assessment completion, and integrity summary.</p>
+            </div>
+            <button class="btn btn-outline-dark align-self-md-start" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Students</p><h2 class="fw-bold mb-0">{{ summary.student_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Assessments</p><h2 class="fw-bold mb-0">{{ summary.assessment_count }}</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Completion</p><h2 class="fw-bold mb-0">{{ summary.completion_rate }}%</h2></div></div>
+            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Violations</p><h2 class="fw-bold mb-0">{{ summary.violation_count }}</h2></div></div>
+        </div>
+
+        <div class="bk-border p-4 mb-4">
+            <h4 class="fw-bold mb-3">Assessment Performance</h4>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Assessment</th><th>Done</th><th>Completion</th><th>Avg</th><th>Passed</th><th></th></tr></thead>
+                    <tbody>
+                        {% for row in assessment_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ row.assessment.title }}</td>
+                                <td>{{ row.completed_count }}/{{ row.assigned_count }}</td>
+                                <td>{{ row.completion_rate }}%</td>
+                                <td>{{ row.average_score|floatformat:1 }}</td>
+                                <td>{{ row.pass_rate }}%</td>
+                                <td class="text-end"><a class="btn btn-outline-dark btn-sm" href="{% url 'assessment_report' row.assessment.id %}">Open</a></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-secondary">No assessments yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bk-border p-4">
+            <h4 class="fw-bold mb-3">Student Performance</h4>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Student</th><th>Email</th><th>Completed</th><th>Avg</th><th>Violations</th><th>Disqualified</th></tr></thead>
+                    <tbody>
+                        {% for row in student_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ row.student.fullname }}</td>
+                                <td>{{ row.student.email }}</td>
+                                <td>{{ row.completed_count }}</td>
+                                <td>{{ row.average_score|floatformat:1 }}</td>
+                                <td>{{ row.violation_count }}</td>
+                                <td>{{ row.disqualified_count }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-secondary">No students in this classroom.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

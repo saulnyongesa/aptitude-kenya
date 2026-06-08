@@ -23,9 +23,14 @@
                         <p class="text-secondary small">{{ plan.description|default:"Subscription access for tutor assessments." }}</p>
                         <h2 class="fw-bold mb-1">{{ plan.currency }} {{ plan.price }}</h2>
                         <p class="text-secondary small mb-3">{{ plan.duration_months }} month(s){% if plan.discount_percent %} · {{ plan.discount_percent }}% discount{% endif %}</p>
+                        {% if plan.upgrade_credit %}
+                            <p class="small text-success fw-semibold">Estimated upgrade credit: {{ plan.currency }} {{ plan.upgrade_credit }}</p>
+                        {% endif %}
                         <form method="post" action="{% url 'start_subscription' plan.id %}">
                             {% csrf_token %}
-                            <button class="btn btn-custom w-100" type="submit">Create Invoice</button>
+                            <button class="btn {% if plan.is_current_plan %}btn-outline-dark{% else %}btn-custom{% endif %} w-100" type="submit" {% if plan.is_current_plan %}disabled{% endif %}>
+                                {% if plan.is_current_plan %}Current Plan{% else %}Create Invoice{% endif %}
+                            </button>
                         </form>
                     </div>
                 </div>
