@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Logs{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Audit Logs</h1>
+                <p class="dashboard-subtitle">Recent operational actions performed by platform administrators.</p>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+
+        <div class="dashboard-panel">
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Summary</th></tr></thead>
+                    <tbody>
+                        {% for log in logs %}
+                            <tr>
+                                <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+                                <td>{{ log.actor.email|default:"System" }}</td>
+                                <td class="fw-semibold">{{ log.action }}</td>
+                                <td>{{ log.target_model }} #{{ log.target_id }}</td>
+                                <td>{{ log.summary }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="text-secondary">No audit logs yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

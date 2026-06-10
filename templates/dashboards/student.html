@@ -3,95 +3,110 @@
 {% block title %}Student Dashboard{% endblock title %}
 
 {% block content %}
-<section class="py-5">
+<section class="dashboard-shell">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+        <div class="dashboard-topbar">
             <div>
-                <p class="text-uppercase small fw-bold text-success mb-1">Student Dashboard</p>
-                <h1 class="fw-bold mb-1">Welcome, {{ request.user.fullname }}</h1>
-                <p class="text-secondary mb-0">{{ request.user.student_profile.school_name }} · {{ request.user.student_profile.registration_number }}</p>
+                <p class="dashboard-eyebrow">Student Dashboard</p>
+                <h1 class="dashboard-title">Welcome, {{ request.user.fullname }}</h1>
+                <p class="dashboard-subtitle">{{ request.user.student_profile.school_name }} &middot; {{ request.user.student_profile.registration_number }}</p>
             </div>
-            <div class="bk-border px-3 py-2 align-self-start">
-                <span class="small text-muted fw-bold text-uppercase">Unread</span>
-                <strong class="ms-2">{{ unread_notification_count }}</strong>
-                <a class="btn btn-outline-dark btn-sm ms-3" href="{% url 'student_reports' %}">Reports</a>
+            <div class="dashboard-actions">
+                <button class="btn btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#createTodoModal">
+                    <i class="fas fa-plus"></i>Add Todo
+                </button>
+                <a class="btn btn-outline-dark" href="{% url 'student_reports' %}">
+                    <i class="fas fa-chart-line"></i>Reports
+                </a>
+                <span class="status-pill {% if unread_notification_count %}warning{% else %}success{% endif %} align-self-center">
+                    {{ unread_notification_count }} unread
+                </span>
             </div>
         </div>
 
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
+        {% include 'partials/_dashboard_messages.html' %}
 
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-lg-2">
-                <div class="bk-border p-3 h-100">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Active</p>
-                    <h2 class="fw-bold mb-0">{{ summary.active_count }}</h2>
-                </div>
+        <div class="dashboard-grid metrics mb-4">
+            <div class="metric-tile">
+                <p class="metric-label">Active</p>
+                <p class="metric-value">{{ summary.active_count }}</p>
+                <p class="metric-note">Assessments ready to open.</p>
             </div>
-            <div class="col-6 col-lg-2">
-                <div class="bk-border p-3 h-100">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Pending</p>
-                    <h2 class="fw-bold mb-0">{{ summary.pending_count }}</h2>
-                </div>
+            <div class="metric-tile">
+                <p class="metric-label">Pending</p>
+                <p class="metric-value">{{ summary.pending_count }}</p>
+                <p class="metric-note">Scheduled upcoming work.</p>
             </div>
-            <div class="col-6 col-lg-2">
-                <div class="bk-border p-3 h-100">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Overdue</p>
-                    <h2 class="fw-bold mb-0">{{ summary.overdue_count }}</h2>
-                </div>
+            <div class="metric-tile">
+                <p class="metric-label">Overdue</p>
+                <p class="metric-value">{{ summary.overdue_count }}</p>
+                <p class="metric-note">Closed work requiring attention.</p>
             </div>
-            <div class="col-6 col-lg-2">
-                <div class="bk-border p-3 h-100">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Done</p>
-                    <h2 class="fw-bold mb-0">{{ summary.completed_count }}</h2>
-                </div>
-            </div>
-            <div class="col-12 col-lg-4">
-                <div class="bk-border p-3 h-100">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Todos</p>
-                    <h2 class="fw-bold mb-0">{{ summary.todo_count }}</h2>
-                </div>
+            <div class="metric-tile">
+                <p class="metric-label">Todos</p>
+                <p class="metric-value">{{ summary.todo_count }}</p>
+                <p class="metric-note">Open personal tasks.</p>
             </div>
         </div>
 
         <div class="row g-4">
-            <div class="col-lg-8">
-                <div class="bk-border p-4 mb-4">
-                    <div class="d-flex justify-content-between gap-3 mb-3">
+            <div class="col-xl-8">
+                <div class="dashboard-panel mb-4">
+                    <div class="dashboard-panel-header">
                         <div>
-                            <h4 class="fw-bold mb-1">Active Assessments</h4>
-                            <p class="text-secondary small mb-0">Published work available from your assigned classrooms.</p>
+                            <h2 class="dashboard-panel-title">Active Assessments</h2>
+                            <p class="dashboard-panel-subtitle">Published work available from your assigned classrooms.</p>
                         </div>
                     </div>
+
                     {% if assessment_overview.active %}
-                        {% for assessment in assessment_overview.active %}
-                            <div class="border rounded-3 p-3 mb-3">
-                                <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
-                                    <div>
-                                        <p class="small text-muted mb-1">{{ assessment.classroom.name }} · {{ assessment.get_assessment_type_display }}</p>
-                                        <h5 class="fw-bold mb-1">{{ assessment.title }}</h5>
-                                        <p class="text-secondary small mb-0">
-                                            {% if assessment.end_time %}Due {{ assessment.end_time|date:"M d, Y H:i" }}{% else %}No closing time{% endif %}
-                                            · {{ assessment.duration_minutes }} minutes
-                                        </p>
-                                    </div>
-                                    <a class="btn btn-custom align-self-md-start" href="{% url 'student_assessment_start' assessment.id %}">Open</a>
-                                </div>
-                            </div>
-                        {% endfor %}
+                        <div class="table-responsive">
+                            <table class="table data-table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Assessment</th>
+                                        <th>Classroom</th>
+                                        <th>Due</th>
+                                        <th>Duration</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for assessment in assessment_overview.active %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">{{ assessment.title }}</div>
+                                                <div class="text-secondary small">{{ assessment.get_assessment_type_display }}</div>
+                                            </td>
+                                            <td>{{ assessment.classroom.name }}</td>
+                                            <td>{% if assessment.end_time %}{{ assessment.end_time|date:"M d, Y H:i" }}{% else %}No closing time{% endif %}</td>
+                                            <td>{{ assessment.duration_minutes }} min</td>
+                                            <td class="text-end">
+                                                <a class="btn btn-custom btn-sm" href="{% url 'student_assessment_start' assessment.id %}">Open</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
-                        <p class="text-secondary mb-0">No active assessments right now.</p>
+                        <div class="empty-state">
+                            <strong>No active assessments right now.</strong>
+                            <span>New published work will appear here when your tutor opens it.</span>
+                        </div>
                     {% endif %}
                 </div>
 
-                <div class="bk-border p-4 mb-4">
-                    <h4 class="fw-bold mb-3">Upcoming Calendar</h4>
+                <div class="dashboard-panel mb-4">
+                    <div class="dashboard-panel-header">
+                        <div>
+                            <h2 class="dashboard-panel-title">Upcoming Calendar</h2>
+                            <p class="dashboard-panel-subtitle">Assessment start and closing dates in one list.</p>
+                        </div>
+                    </div>
                     {% if assessment_overview.calendar %}
                         <div class="table-responsive">
-                            <table class="table align-middle">
+                            <table class="table data-table align-middle">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
@@ -104,21 +119,24 @@
                                         <tr>
                                             <td>{{ item.date|date:"M d, Y H:i" }}</td>
                                             <td>{{ item.assessment.title }}</td>
-                                            <td>{{ item.status|title }}</td>
+                                            <td><span class="status-pill neutral">{{ item.status|title }}</span></td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-secondary mb-0">No scheduled assessment dates yet.</p>
+                        <div class="empty-state">
+                            <strong>No scheduled dates yet.</strong>
+                            <span>Assessment dates will appear here after tutors publish timed work.</span>
+                        </div>
                     {% endif %}
                 </div>
 
                 <div class="row g-4">
                     <div class="col-md-6">
-                        <div class="bk-border p-4 h-100">
-                            <h4 class="fw-bold mb-3">Pending</h4>
+                        <div class="dashboard-panel h-100">
+                            <h2 class="dashboard-panel-title mb-3">Pending</h2>
                             {% for assessment in assessment_overview.pending %}
                                 <div class="border-bottom pb-2 mb-2">
                                     <p class="fw-semibold mb-1">{{ assessment.title }}</p>
@@ -130,8 +148,8 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="bk-border p-4 h-100">
-                            <h4 class="fw-bold mb-3">Completed</h4>
+                        <div class="dashboard-panel h-100">
+                            <h2 class="dashboard-panel-title mb-3">Completed</h2>
                             {% for assessment in assessment_overview.completed %}
                                 <div class="border-bottom pb-2 mb-2">
                                     <p class="fw-semibold mb-1">{{ assessment.title }}</p>
@@ -144,11 +162,16 @@
                     </div>
                 </div>
 
-                <div class="bk-border p-4 mt-4">
-                    <h4 class="fw-bold mb-3">Result History</h4>
+                <div class="dashboard-panel mt-4">
+                    <div class="dashboard-panel-header">
+                        <div>
+                            <h2 class="dashboard-panel-title">Result History</h2>
+                            <p class="dashboard-panel-subtitle">Released scores from completed assessments.</p>
+                        </div>
+                    </div>
                     {% if recent_results %}
                         <div class="table-responsive">
-                            <table class="table align-middle">
+                            <table class="table data-table align-middle">
                                 <thead>
                                     <tr>
                                         <th>Assessment</th>
@@ -159,7 +182,7 @@
                                 <tbody>
                                     {% for result in recent_results %}
                                         <tr>
-                                            <td>{{ result.exam.title }}</td>
+                                            <td class="fw-semibold">{{ result.exam.title }}</td>
                                             <td>{{ result.score }}</td>
                                             <td>{{ result.submitted_at|date:"M d, Y H:i" }}</td>
                                         </tr>
@@ -168,46 +191,27 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-secondary mb-0">Released results will appear here.</p>
+                        <div class="empty-state">
+                            <strong>No released results yet.</strong>
+                            <span>Scores will appear here when tutors allow result visibility.</span>
+                        </div>
                     {% endif %}
                 </div>
             </div>
 
-            <div class="col-lg-4">
-                <div class="bk-border p-4 mb-4">
-                    <h4 class="fw-bold mb-3">Add Todo</h4>
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="form_action" value="create_todo">
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Title</label>
-                            <input class="form-control p-3 bg-light border-0" name="title" required>
+            <div class="col-xl-4">
+                <div class="dashboard-panel mb-4">
+                    <div class="dashboard-panel-header">
+                        <div>
+                            <h2 class="dashboard-panel-title">Todos</h2>
+                            <p class="dashboard-panel-subtitle">Your open study tasks and linked assessment reminders.</p>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Due Time</label>
-                            <input class="form-control p-3 bg-light border-0" type="datetime-local" name="due_at">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Assessment</label>
-                            <select class="form-select p-3 bg-light border-0" name="assessment_id">
-                                <option value="">No assessment</option>
-                                {% for assessment in assessment_choices %}
-                                    <option value="{{ assessment.id }}">{{ assessment.title }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Notes</label>
-                            <textarea class="form-control p-3 bg-light border-0" name="notes" rows="2"></textarea>
-                        </div>
-                        <button class="btn btn-custom w-100" type="submit">Add Todo</button>
-                    </form>
-                </div>
-
-                <div class="bk-border p-4 mb-4">
-                    <h4 class="fw-bold mb-3">Todos</h4>
+                        <button class="btn btn-sm btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#createTodoModal">
+                            <i class="fas fa-plus"></i>New
+                        </button>
+                    </div>
                     {% for todo in todos %}
-                        <div class="border rounded-3 p-3 mb-2 {% if todo.is_completed %}bg-light{% endif %}">
+                        <div class="border-bottom pb-3 mb-3 {% if todo.is_completed %}text-secondary{% endif %}">
                             <div class="d-flex justify-content-between gap-2">
                                 <div>
                                     <p class="fw-semibold mb-1">{{ todo.title }}</p>
@@ -226,12 +230,15 @@
                             </div>
                         </div>
                     {% empty %}
-                        <p class="text-secondary mb-0">No todos yet.</p>
+                        <div class="empty-state">
+                            <strong>No todos yet.</strong>
+                            <span>Add study tasks and reminders from the todo modal.</span>
+                        </div>
                     {% endfor %}
                 </div>
 
-                <div class="bk-border p-4 mb-4">
-                    <h4 class="fw-bold mb-3">Reminders</h4>
+                <div class="dashboard-panel mb-4">
+                    <h2 class="dashboard-panel-title mb-3">Reminders</h2>
                     {% for reminder in reminders %}
                         <div class="border-bottom pb-2 mb-2">
                             <p class="fw-semibold mb-1">{{ reminder.title }}</p>
@@ -242,20 +249,24 @@
                     {% endfor %}
                 </div>
 
-                <div class="bk-border p-4">
-                    <h4 class="fw-bold mb-3">Notifications</h4>
+                <div class="dashboard-panel">
+                    <h2 class="dashboard-panel-title mb-3">Notifications</h2>
                     {% for notification in notifications %}
-                        <div class="border rounded-3 p-3 mb-2 {% if notification.is_read %}bg-light{% endif %}">
-                            <p class="fw-semibold mb-1">{{ notification.title }}</p>
-                            <p class="text-secondary small mb-2">{{ notification.message }}</p>
-                            {% if not notification.is_read %}
-                                <form method="post">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="form_action" value="mark_notification_read">
-                                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
-                                    <button class="btn btn-outline-dark btn-sm" type="submit">Mark Read</button>
-                                </form>
-                            {% endif %}
+                        <div class="border-bottom pb-3 mb-3 {% if notification.is_read %}text-secondary{% endif %}">
+                            <div class="d-flex justify-content-between gap-2">
+                                <div>
+                                    <p class="fw-semibold mb-1">{{ notification.title }}</p>
+                                    <p class="text-secondary small mb-2">{{ notification.message }}</p>
+                                </div>
+                                {% if not notification.is_read %}
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="form_action" value="mark_notification_read">
+                                        <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                                        <button class="btn btn-outline-dark btn-sm" type="submit">Read</button>
+                                    </form>
+                                {% endif %}
+                            </div>
                         </div>
                     {% empty %}
                         <p class="text-secondary mb-0">No notifications yet.</p>
@@ -265,4 +276,49 @@
         </div>
     </div>
 </section>
+
+<div class="modal fade" id="createTodoModal" tabindex="-1" aria-labelledby="createTodoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="createTodoModalLabel">Add Todo</h2>
+                    <p class="text-secondary small mb-0">Create a study task and optional reminder linked to an assessment.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="form_action" value="create_todo">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="todoTitle">Title</label>
+                        <input class="form-control p-3 bg-light border-0" id="todoTitle" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="todoDueAt">Due Time</label>
+                        <input class="form-control p-3 bg-light border-0" id="todoDueAt" type="datetime-local" name="due_at">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="todoAssessment">Assessment</label>
+                        <select class="form-select p-3 bg-light border-0" id="todoAssessment" name="assessment_id">
+                            <option value="">No assessment</option>
+                            {% for assessment in assessment_choices %}
+                                <option value="{{ assessment.id }}">{{ assessment.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label small fw-bold" for="todoNotes">Notes</label>
+                        <textarea class="form-control p-3 bg-light border-0" id="todoNotes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Add Todo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock content %}

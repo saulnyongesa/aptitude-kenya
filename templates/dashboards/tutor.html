@@ -3,127 +3,108 @@
 {% block title %}Tutor Dashboard{% endblock title %}
 
 {% block content %}
-<section class="py-5">
+<section class="dashboard-shell">
     <div class="container">
-        <div class="mb-4">
-            <p class="text-uppercase small fw-bold text-success mb-1">Tutor Dashboard</p>
-            <h1 class="fw-bold mb-1">Welcome, {{ request.user.fullname }}</h1>
-            <p class="text-secondary mb-0">Manage classrooms, student access, and readiness for assessments.</p>
-            <a href="{% url 'assessment_list' %}" class="btn btn-custom mt-3"><i class="fas fa-file-circle-plus"></i>Assessments</a>
-            <a href="{% url 'tutor_reports' %}" class="btn btn-outline-dark mt-3 ms-md-2"><i class="fas fa-chart-line"></i>Reports</a>
-            <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark mt-3 ms-md-2"><i class="fas fa-receipt"></i>Billing</a>
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Tutor Dashboard</p>
+                <h1 class="dashboard-title">Welcome, {{ request.user.fullname }}</h1>
+                <p class="dashboard-subtitle">Manage classrooms, provision students, review reports, and keep billing ready for published assessments.</p>
+            </div>
+            <div class="dashboard-actions">
+                <button class="btn btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#createClassroomModal">
+                    <i class="fas fa-plus"></i>Create Classroom
+                </button>
+                <button class="btn btn-outline-dark" type="button" data-bs-toggle="modal" data-bs-target="#createStudentModal">
+                    <i class="fas fa-user-plus"></i>Create Student
+                </button>
+                <a href="{% url 'assessment_list' %}" class="btn btn-outline-dark">
+                    <i class="fas fa-file-circle-plus"></i>Assessments
+                </a>
+                <a href="{% url 'tutor_reports' %}" class="btn btn-outline-dark">
+                    <i class="fas fa-chart-line"></i>Reports
+                </a>
+                <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark">
+                    <i class="fas fa-receipt"></i>Billing
+                </a>
+            </div>
         </div>
 
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} mb-3 small">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        {% endif %}
+        {% include 'partials/_dashboard_messages.html' %}
 
         {% if created_credentials %}
-            <div class="alert alert-success border-0 rounded-3">
-                <strong>{{ created_credentials.name }}</strong> can log in with
-                <strong>{{ created_credentials.email }}</strong> and registration number
-                <strong>{{ created_credentials.registration_number }}</strong>. Temporary password:
-                <strong>{{ created_credentials.temporary_password }}</strong>
+            <div class="alert alert-success border-0 rounded-3 shadow-sm">
+                <div class="fw-bold mb-1">Student account created</div>
+                <div class="small">
+                    {{ created_credentials.name }} can log in with
+                    <strong>{{ created_credentials.email }}</strong>, registration number
+                    <strong>{{ created_credentials.registration_number }}</strong>, and temporary password
+                    <strong>{{ created_credentials.temporary_password }}</strong>.
+                </div>
             </div>
         {% endif %}
 
-        <div class="row g-3 mb-4">
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Active Classrooms</p>
-                    <h2 class="fw-bold mb-0">{{ overview.classroom_count }}</h2>
-                </div>
+        <div class="dashboard-grid metrics mb-4">
+            <div class="metric-tile">
+                <p class="metric-label">Active Classrooms</p>
+                <p class="metric-value">{{ overview.classroom_count }}</p>
+                <p class="metric-note">Open class groups available for assessment assignment.</p>
             </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Students</p>
-                    <h2 class="fw-bold mb-0">{{ overview.student_count }}</h2>
-                </div>
+            <div class="metric-tile">
+                <p class="metric-label">Students</p>
+                <p class="metric-value">{{ overview.student_count }}</p>
+                <p class="metric-note">Tutor-owned student accounts ready for classroom placement.</p>
             </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Billing</p>
-                    {% if active_subscription %}
-                        <h2 class="fw-bold mb-0">Active</h2>
-                        <p class="text-secondary small mb-0">Until {{ active_subscription.ends_at|date:"M d, Y" }}</p>
-                    {% else %}
-                        <h2 class="fw-bold mb-0">{{ pending_invoice_count }}</h2>
-                        <p class="text-secondary small mb-0">Pending invoice(s)</p>
-                    {% endif %}
-                </div>
+            <div class="metric-tile">
+                <p class="metric-label">Archived Classrooms</p>
+                <p class="metric-value">{{ overview.archived_count }}</p>
+                <p class="metric-note">Closed class groups kept for record and report history.</p>
+            </div>
+            <div class="metric-tile">
+                <p class="metric-label">Billing</p>
+                {% if active_subscription %}
+                    <p class="metric-value">Active</p>
+                    <p class="metric-note">Subscription valid until {{ active_subscription.ends_at|date:"M d, Y" }}.</p>
+                {% else %}
+                    <p class="metric-value">{{ pending_invoice_count }}</p>
+                    <p class="metric-note">Pending invoice(s) before paid assessments can be published.</p>
+                {% endif %}
             </div>
         </div>
 
         <div class="row g-4">
-            <div class="col-lg-4">
-                <div class="bk-border p-4 mb-4">
-                    <h4 class="fw-bold mb-3">Create Classroom</h4>
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="form_action" value="create_classroom">
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Classroom Name</label>
-                            <input class="form-control p-3 bg-light border-0 rounded-3" name="name" required>
-                        </div>
-                        <button class="btn btn-custom w-100 py-3" type="submit">CREATE CLASSROOM</button>
-                    </form>
-                </div>
-
-                <div class="bk-border p-4">
-                    <h4 class="fw-bold mb-3">Create Student</h4>
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="form_action" value="create_student">
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Full Name</label>
-                            <input class="form-control p-3 bg-light border-0 rounded-3" name="fullname" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Email</label>
-                            <input class="form-control p-3 bg-light border-0 rounded-3" name="email" type="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">School Name</label>
-                            <input class="form-control p-3 bg-light border-0 rounded-3" name="school_name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Registration Number</label>
-                            <input class="form-control p-3 bg-light border-0 rounded-3" name="registration_number" required>
-                        </div>
-                        <button class="btn btn-outline-dark w-100 py-3" type="submit">CREATE STUDENT</button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="col-lg-8">
-                <div class="bk-border p-4 mb-4">
-                    <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
+            <div class="col-xl-7">
+                <div class="dashboard-panel h-100">
+                    <div class="dashboard-panel-header">
                         <div>
-                            <h4 class="fw-bold mb-1">Classrooms</h4>
-                            <p class="text-secondary small mb-0">Open a classroom to add students or import a class list.</p>
+                            <h2 class="dashboard-panel-title">Classrooms</h2>
+                            <p class="dashboard-panel-subtitle">Open a classroom to manage members, imports, assessments, and classroom-level reports.</p>
                         </div>
+                        <button class="btn btn-sm btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#createClassroomModal">
+                            <i class="fas fa-plus"></i>New
+                        </button>
                     </div>
+
                     {% if classrooms %}
                         <div class="table-responsive">
-                            <table class="table align-middle">
+                            <table class="table data-table align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Name</th>
+                                        <th>Classroom</th>
                                         <th>Code</th>
                                         <th>Students</th>
                                         <th>Assessments</th>
-                                        <th></th>
+                                        <th class="text-end">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for classroom in classrooms %}
                                         <tr>
-                                            <td class="fw-semibold">{{ classroom.name }}</td>
-                                            <td>{{ classroom.room_id }}</td>
+                                            <td>
+                                                <div class="fw-semibold">{{ classroom.name }}</div>
+                                                <div class="text-secondary small">Created {{ classroom.created_at|date:"M d, Y" }}</div>
+                                            </td>
+                                            <td><span class="status-pill neutral">{{ classroom.room_id }}</span></td>
                                             <td>{{ classroom.student_count }}</td>
                                             <td>{{ classroom.exam_count }}</td>
                                             <td class="text-end">
@@ -135,39 +116,55 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-secondary mb-0">No active classrooms yet.</p>
+                        <div class="empty-state">
+                            <strong>No active classrooms yet.</strong>
+                            <span>Create the first classroom, then add students by registration number in the classroom workspace.</span>
+                        </div>
                     {% endif %}
                 </div>
+            </div>
 
-                <div class="bk-border p-4">
-                    <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
+            <div class="col-xl-5">
+                <div class="dashboard-panel h-100">
+                    <div class="dashboard-panel-header">
                         <div>
-                            <h4 class="fw-bold mb-1">Students</h4>
-                            <p class="text-secondary small mb-0">Search tutor-owned students by name, email, registration, or school.</p>
+                            <h2 class="dashboard-panel-title">Students</h2>
+                            <p class="dashboard-panel-subtitle">Search by name, email, registration number, or school.</p>
                         </div>
-                        <form method="get" class="d-flex gap-2">
-                            <input class="form-control" name="q" value="{{ search_query }}" placeholder="Search students">
-                            <button class="btn btn-outline-dark" type="submit">Search</button>
-                        </form>
+                        <button class="btn btn-sm btn-outline-dark" type="button" data-bs-toggle="modal" data-bs-target="#createStudentModal">
+                            <i class="fas fa-user-plus"></i>New
+                        </button>
                     </div>
+
+                    <form method="get" class="row g-2 mb-3">
+                        <div class="col">
+                            <input class="form-control" name="q" value="{{ search_query }}" placeholder="Search students">
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-outline-dark" type="submit">Search</button>
+                        </div>
+                    </form>
+
                     {% if students %}
                         <div class="table-responsive">
-                            <table class="table align-middle">
+                            <table class="table data-table align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Reg No.</th>
+                                        <th>Student</th>
                                         <th>School</th>
-                                        <th></th>
+                                        <th class="text-end">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for profile in students %}
                                         <tr>
-                                            <td>{{ profile.user.fullname }}</td>
-                                            <td>{{ profile.user.email }}</td>
-                                            <td>{{ profile.registration_number }}</td>
+                                            <td>
+                                                <div class="student-identity">
+                                                    <strong>{{ profile.user.fullname }}</strong>
+                                                    <span>{{ profile.registration_number }}</span>
+                                                    <span>{{ profile.user.email }}</span>
+                                                </div>
+                                            </td>
                                             <td>{{ profile.school_name }}</td>
                                             <td class="text-end">
                                                 <form method="post" action="{% url 'reset_student_credentials' profile.user.id %}">
@@ -181,11 +178,80 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-secondary mb-0">No students found.</p>
+                        <div class="empty-state">
+                            <strong>No students found.</strong>
+                            <span>Create a student account or adjust the search term.</span>
+                        </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </section>
+
+<div class="modal fade" id="createClassroomModal" tabindex="-1" aria-labelledby="createClassroomModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="createClassroomModalLabel">Create Classroom</h2>
+                    <p class="text-secondary small mb-0">Set up a class group for students and assessments.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="form_action" value="create_classroom">
+                <div class="modal-body">
+                    <label class="form-label small fw-bold" for="classroomName">Classroom Name</label>
+                    <input class="form-control p-3 bg-light border-0 rounded-3" id="classroomName" name="name" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Create Classroom</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createStudentModal" tabindex="-1" aria-labelledby="createStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="createStudentModalLabel">Create Student</h2>
+                    <p class="text-secondary small mb-0">Provision login details using the student's email and registration number.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="form_action" value="create_student">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="studentFullname">Full Name</label>
+                        <input class="form-control p-3 bg-light border-0 rounded-3" id="studentFullname" name="fullname" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="studentEmail">Email</label>
+                        <input class="form-control p-3 bg-light border-0 rounded-3" id="studentEmail" name="email" type="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold" for="studentSchool">School Name</label>
+                        <input class="form-control p-3 bg-light border-0 rounded-3" id="studentSchool" name="school_name" required>
+                    </div>
+                    <div>
+                        <label class="form-label small fw-bold" for="studentRegistration">Registration Number</label>
+                        <input class="form-control p-3 bg-light border-0 rounded-3" id="studentRegistration" name="registration_number" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Create Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock content %}

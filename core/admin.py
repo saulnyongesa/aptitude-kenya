@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, TutorProfile, StudentProfile, Classroom, Exam, QuestionSection, Question, Choice, QuestionBankItem, PlatformPricing, SubscriptionPlan, Invoice, Payment, TutorSubscription, MpesaTransaction, Submission, StudentAnswer, StudentTodo, StudentReminder, StudentNotification, ProctorLog, SiteStatistic, ContactMessage
+from .models import AuditLog, BackgroundTaskLog, User, TutorProfile, StudentProfile, Classroom, Exam, QuestionSection, Question, Choice, QuestionBankItem, PlatformPricing, SubscriptionPlan, Invoice, Payment, TutorSubscription, MpesaTransaction, Submission, StudentAnswer, StudentTodo, StudentReminder, StudentNotification, ProctorLog, SiteStatistic, ContactMessage, PlatformAnnouncement, SupportIssue
 
 # --- 1. Custom User Admin ---
 @admin.register(User)
@@ -157,3 +157,33 @@ class ContactMessageAdmin(admin.ModelAdmin):
     list_display = ('name', 'email', 'created_at', 'is_read')
     list_filter = ('is_read', 'created_at')
     search_fields = ('name', 'email')
+
+
+@admin.register(PlatformAnnouncement)
+class PlatformAnnouncementAdmin(admin.ModelAdmin):
+    list_display = ('title', 'audience', 'is_active', 'starts_at', 'ends_at', 'created_by', 'created_at')
+    list_filter = ('audience', 'is_active', 'created_at')
+    search_fields = ('title', 'message')
+
+
+@admin.register(SupportIssue)
+class SupportIssueAdmin(admin.ModelAdmin):
+    list_display = ('subject', 'status', 'priority', 'user', 'assigned_to', 'updated_at')
+    list_filter = ('status', 'priority', 'created_at')
+    search_fields = ('subject', 'description', 'user__email')
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('action', 'actor', 'target_model', 'target_id', 'created_at')
+    list_filter = ('action', 'target_model', 'created_at')
+    search_fields = ('action', 'summary', 'actor__email')
+    readonly_fields = ('actor', 'action', 'target_model', 'target_id', 'summary', 'metadata', 'created_at')
+
+
+@admin.register(BackgroundTaskLog)
+class BackgroundTaskLogAdmin(admin.ModelAdmin):
+    list_display = ('task_name', 'backend', 'status', 'created_at', 'started_at', 'finished_at')
+    list_filter = ('backend', 'status', 'task_name', 'created_at')
+    search_fields = ('task_name', 'error_message')
+    readonly_fields = ('task_name', 'backend', 'status', 'args', 'kwargs', 'result', 'error_message', 'created_at', 'started_at', 'finished_at')

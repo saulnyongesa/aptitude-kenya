@@ -643,3 +643,132 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f"Message from {self.name} - {self.created_at.date()}"
+
+
+class PlatformAnnouncement(models.Model):
+    """Admin-authored notice shown to tutors, students, or everyone."""
+
+    AUDIENCE_ALL = "all"
+    AUDIENCE_TUTORS = "tutors"
+    AUDIENCE_STUDENTS = "students"
+    AUDIENCE_CHOICES = (
+        (AUDIENCE_ALL, "All users"),
+        (AUDIENCE_TUTORS, "Tutors"),
+        (AUDIENCE_STUDENTS, "Students"),
+    )
+
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    audience = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default=AUDIENCE_ALL)
+    is_active = models.BooleanField(default=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="created_announcements", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+class SupportIssue(models.Model):
+    """Admin-tracked support item raised from contact messages or manually."""
+
+    STATUS_OPEN = "open"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CLOSED = "closed"
+    STATUS_CHOICES = (
+        (STATUS_OPEN, "Open"),
+        (STATUS_IN_PROGRESS, "In progress"),
+        (STATUS_RESOLVED, "Resolved"),
+        (STATUS_CLOSED, "Closed"),
+    )
+
+    PRIORITY_LOW = "low"
+    PRIORITY_NORMAL = "normal"
+    PRIORITY_HIGH = "high"
+    PRIORITY_CHOICES = (
+        (PRIORITY_LOW, "Low"),
+        (PRIORITY_NORMAL, "Normal"),
+        (PRIORITY_HIGH, "High"),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="support_issues", null=True, blank=True)
+    contact_message = models.ForeignKey(ContactMessage, on_delete=models.SET_NULL, related_name="support_issues", null=True, blank=True)
+    subject = models.CharField(max_length=255)
+    description = models.TextField()
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_NORMAL)
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="assigned_support_issues", null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["status", "-updated_at"]
+
+    def __str__(self):
+        return self.subject
+
+
+class AuditLog(models.Model):
+    """Append-only admin action log for operational accountability."""
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="audit_logs", null=True, blank=True)
+    action = models.CharField(max_length=120)
+    target_model = models.CharField(max_length=120, blank=True)
+    target_id = models.CharField(max_length=120, blank=True)
+    summary = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.action} by {self.actor}"
+
+
+class BackgroundTaskLog(models.Model):
+    """Persistent record for threaded or Celery background work."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    )
+
+    BACKEND_THREADING = "threading"
+    BACKEND_CELERY = "celery"
+    BACKEND_INLINE = "inline"
+    BACKEND_CHOICES = (
+        (BACKEND_THREADING, "Threading"),
+        (BACKEND_CELERY, "Celery"),
+        (BACKEND_INLINE, "Inline"),
+    )
+
+    task_name = models.CharField(max_length=160)
+    backend = models.CharField(max_length=30, choices=BACKEND_CHOICES)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    args = models.JSONField(default=list, blank=True)
+    kwargs = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.task_name} - {self.status}"

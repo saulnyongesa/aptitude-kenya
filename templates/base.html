@@ -271,6 +271,222 @@
             border-radius: 8px !important;
         }
 
+        .dashboard-shell {
+            padding: 32px 0 56px;
+        }
+
+        .dashboard-topbar {
+            align-items: flex-start;
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            margin-bottom: 22px;
+        }
+
+        .dashboard-eyebrow {
+            color: var(--brand-green-dark);
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .dashboard-title {
+            font-size: clamp(1.65rem, 3vw, 2.2rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .dashboard-subtitle {
+            color: var(--muted);
+            margin-bottom: 0;
+            max-width: 760px;
+        }
+
+        .dashboard-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .dashboard-grid.metrics {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 22px;
+        }
+
+        .dashboard-panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .dashboard-panel-header {
+            align-items: flex-start;
+            display: flex;
+            gap: 14px;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .dashboard-panel-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        .dashboard-panel-subtitle {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-bottom: 0;
+        }
+
+        .metric-tile {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            min-height: 116px;
+            padding: 18px;
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            color: var(--ink);
+            font-size: 1.85rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .metric-note {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin-bottom: 0;
+        }
+
+        .data-table {
+            margin-bottom: 0;
+        }
+
+        .data-table thead th {
+            border-bottom-color: var(--line);
+            color: var(--muted);
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .data-table tbody td {
+            border-color: #edf2f7;
+            vertical-align: middle;
+        }
+
+        .student-identity strong,
+        .student-identity span {
+            display: block;
+        }
+
+        .student-identity span {
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .status-pill {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 0.76rem;
+            font-weight: 800;
+            padding: 0.26rem 0.58rem;
+            white-space: nowrap;
+        }
+
+        .status-pill.success {
+            background: #e7f7ef;
+            border-color: #b7ebcf;
+            color: var(--brand-green-dark);
+        }
+
+        .status-pill.warning {
+            background: #fff5df;
+            border-color: #f6d999;
+            color: var(--amber);
+        }
+
+        .status-pill.danger {
+            background: #fff0f0;
+            border-color: #f3b8b8;
+            color: var(--danger);
+        }
+
+        .empty-state {
+            border: 1px dashed var(--line);
+            border-radius: 8px;
+            color: var(--muted);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .modal-content {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .modal-header,
+        .modal-footer {
+            border-color: var(--line);
+        }
+
+        .modal-title {
+            font-weight: 800;
+        }
+
+        .dashboard-modal {
+            border: 0;
+            box-shadow: 0 22px 70px rgba(15, 23, 42, 0.18);
+        }
+
+        .admin-form p {
+            margin-bottom: 1rem;
+        }
+
+        .admin-form label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+        }
+
+        .admin-form input,
+        .admin-form select,
+        .admin-form textarea {
+            background: #f8fafc;
+            border: 0;
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            width: 100%;
+        }
+
+        .admin-form input[type="checkbox"] {
+            width: auto;
+        }
+
         footer {
             background: #ffffff;
             border-top: 1px solid var(--line);
@@ -402,6 +618,23 @@
             .feature-grid {
                 grid-template-columns: 1fr;
             }
+
+            .dashboard-topbar {
+                flex-direction: column;
+            }
+
+            .dashboard-actions {
+                justify-content: flex-start;
+                width: 100%;
+            }
+
+            .dashboard-actions .btn {
+                flex: 1 1 auto;
+            }
+
+            .dashboard-grid.metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
 
         @media (max-width: 575.98px) {
@@ -465,6 +698,23 @@
 
             .portal-action > .fa-arrow-right {
                 display: none;
+            }
+
+            .dashboard-shell {
+                padding: 22px 0 42px;
+            }
+
+            .dashboard-grid.metrics {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-panel,
+            .metric-tile {
+                padding: 16px;
+            }
+
+            .dashboard-panel-header {
+                flex-direction: column;
             }
         }
     </style>

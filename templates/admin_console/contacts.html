@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Contacts And Support{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Contacts And Support</h1>
+                <p class="dashboard-subtitle">Convert contact messages into support issues and track resolution.</p>
+            </div>
+            <div class="dashboard-actions">
+                <a class="btn btn-custom" href="{% url 'admin_support_issue_create' %}"><i class="fas fa-plus"></i>New Issue</a>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="dashboard-panel h-100">
+                    <h2 class="dashboard-panel-title mb-3">Contact Messages</h2>
+                    {% for contact in contacts %}
+                        <div class="border-bottom pb-3 mb-3">
+                            <div class="d-flex justify-content-between gap-2">
+                                <div><strong>{{ contact.name }}</strong><br><span class="text-secondary small">{{ contact.email }} &middot; {{ contact.created_at|date:"M d, Y H:i" }}</span></div>
+                                {% if contact.is_read %}<span class="status-pill success">Read</span>{% else %}<span class="status-pill warning">New</span>{% endif %}
+                            </div>
+                            <p class="small mt-2 mb-2">{{ contact.message|truncatechars:180 }}</p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <form method="post" action="{% url 'admin_contact_action' contact.id %}">{% csrf_token %}<input type="hidden" name="action" value="mark_read"><button class="btn btn-outline-dark btn-sm" type="submit">Mark Read</button></form>
+                                <form method="post" action="{% url 'admin_contact_action' contact.id %}">{% csrf_token %}<input type="hidden" name="action" value="create_issue"><button class="btn btn-outline-dark btn-sm" type="submit">Create Issue</button></form>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No contact messages yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="dashboard-panel h-100">
+                    <h2 class="dashboard-panel-title mb-3">Support Issues</h2>
+                    {% for issue in issues %}
+                        <div class="border-bottom pb-3 mb-3">
+                            <div class="d-flex justify-content-between gap-2">
+                                <strong>{{ issue.subject }}</strong>
+                                <span class="status-pill neutral">{{ issue.get_status_display }}</span>
+                            </div>
+                            <p class="text-secondary small mb-2">{{ issue.get_priority_display }} priority &middot; Updated {{ issue.updated_at|date:"M d, Y H:i" }}</p>
+                            <a class="btn btn-outline-dark btn-sm" href="{% url 'admin_support_issue_edit' issue.id %}">Open</a>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No support issues yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

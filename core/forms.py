@@ -1,7 +1,8 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import authenticate
 
-from .models import Classroom, Exam, Question, QuestionBankItem, QuestionSection, StudentProfile, User
+from .models import Classroom, Exam, PlatformAnnouncement, PlatformPricing, Question, QuestionBankItem, QuestionSection, StudentProfile, SubscriptionPlan, SupportIssue, User
 
 
 class TutorRegistrationForm(forms.Form):
@@ -109,6 +110,15 @@ class StudentSearchForm(forms.Form):
     q = forms.CharField(max_length=100, required=False)
 
 
+class ClassroomStudentMembershipForm(forms.Form):
+    """Validate adding an existing tutor-owned student to a classroom."""
+
+    registration_number = forms.CharField(max_length=100)
+
+    def clean_registration_number(self):
+        return self.cleaned_data["registration_number"].strip()
+
+
 class BulkStudentImportForm(forms.Form):
     """Validate CSV/XLSX uploads for tutor student provisioning."""
 
@@ -121,10 +131,7 @@ class BulkStudentImportForm(forms.Form):
 
     def clean_file(self):
         upload = self.cleaned_data["file"]
-        name = upload.name.lower()
-        if not name.endswith((".csv", ".xlsx")):
-            raise forms.ValidationError("Upload a CSV or Excel .xlsx file.")
-        return upload
+        return _validate_import_upload(upload)
 
     def clean_classroom_id(self):
         classroom_id = self.cleaned_data.get("classroom_id")
@@ -253,9 +260,7 @@ class BulkQuestionImportForm(forms.Form):
 
     def clean_file(self):
         upload = self.cleaned_data["file"]
-        if not upload.name.lower().endswith((".csv", ".xlsx")):
-            raise forms.ValidationError("Upload a CSV or Excel .xlsx file.")
-        return upload
+        return _validate_import_upload(upload)
 
 
 class BankQuestionSelectForm(forms.Form):
@@ -302,3 +307,94 @@ class StudentTodoForm(forms.Form):
         ).exists():
             raise forms.ValidationError("Assessment was not found.")
         return assessment_id
+
+
+class AdminPricingForm(forms.ModelForm):
+    """Validate platform pay-per-student pricing managed by admins."""
+
+    class Meta:
+        model = PlatformPricing
+        fields = ["currency", "pay_per_student_rate", "is_active"]
+
+
+class AdminSubscriptionPlanForm(forms.ModelForm):
+    """Validate admin-managed tutor subscription plans."""
+
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            "name",
+            "description",
+            "duration_months",
+            "price",
+            "currency",
+            "discount_percent",
+            "anti_cheating_level",
+            "is_active",
+        ]
+
+
+class AdminAnnouncementForm(forms.ModelForm):
+    """Validate platform announcement publishing details."""
+
+    class Meta:
+        model = PlatformAnnouncement
+        fields = ["title", "message", "audience", "is_active", "starts_at", "ends_at"]
+        widgets = {
+            "starts_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "ends_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        starts_at = cleaned.get("starts_at")
+        ends_at = cleaned.get("ends_at")
+        if starts_at and ends_at and ends_at <= starts_at:
+            raise forms.ValidationError("End time must be after start time.")
+        return cleaned
+
+
+class AdminSupportIssueForm(forms.ModelForm):
+    """Validate support issue status and resolution updates."""
+
+    class Meta:
+        model = SupportIssue
+        fields = ["subject", "description", "priority", "status", "resolution_notes", "assigned_to"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["assigned_to"].queryset = User.objects.filter(role=User.ROLE_ADMIN)
+        self.fields["assigned_to"].required = False
+
+
+class AdminUserSearchForm(forms.Form):
+    """Validate admin user search filters."""
+
+    q = forms.CharField(max_length=100, required=False)
+    role = forms.ChoiceField(
+        choices=(("", "All roles"),) + User.ROLE_CHOICES,
+        required=False,
+    )
+
+
+class AdminInvoiceSearchForm(forms.Form):
+    """Validate admin invoice filters."""
+
+    status = forms.ChoiceField(choices=(("", "All statuses"),), required=False)
+    q = forms.CharField(max_length=100, required=False)
+
+    def __init__(self, *args, **kwargs):
+        from .models import Invoice
+
+        super().__init__(*args, **kwargs)
+        self.fields["status"].choices = (("", "All statuses"),) + Invoice.STATUS_CHOICES
+
+
+def _validate_import_upload(upload):
+    """Validate CSV/XLSX imports before parsing user-controlled files."""
+    name = upload.name.lower()
+    if not name.endswith((".csv", ".xlsx")):
+        raise forms.ValidationError("Upload a CSV or Excel .xlsx file.")
+    if upload.size > settings.MAX_IMPORT_UPLOAD_SIZE:
+        raise forms.ValidationError("Upload file is too large.")
+    return upload

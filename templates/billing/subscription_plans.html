@@ -3,40 +3,46 @@
 {% block title %}Subscription Plans{% endblock title %}
 
 {% block content %}
-<section class="py-5">
+<section class="dashboard-shell">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+        <div class="dashboard-topbar">
             <div>
-                <p class="text-uppercase small fw-bold text-success mb-1">Subscription Plans</p>
-                <h1 class="fw-bold mb-1">Choose Tutor Access</h1>
-                <p class="text-secondary mb-0">Plans can be configured by admins for monthly, termly, quarterly, or yearly billing.</p>
+                <p class="dashboard-eyebrow">Subscription Plans</p>
+                <h1 class="dashboard-title">Choose Tutor Access</h1>
+                <p class="dashboard-subtitle">Active tutors can upgrade immediately. Lower plans become available after the current subscription ends.</p>
             </div>
-            <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark align-self-start">Billing</a>
+            <div class="dashboard-actions">
+                <a href="{% url 'billing_overview' %}" class="btn btn-outline-dark"><i class="fas fa-receipt"></i>Billing</a>
+            </div>
         </div>
+
+        {% include 'partials/_dashboard_messages.html' %}
 
         <div class="row g-4">
             {% for plan in plans %}
                 <div class="col-lg-4 col-md-6">
-                    <div class="bk-border p-4 h-100">
+                    <div class="dashboard-panel h-100">
                         <p class="small text-uppercase fw-bold text-success mb-1">{{ plan.get_anti_cheating_level_display }}</p>
                         <h4 class="fw-bold mb-2">{{ plan.name }}</h4>
                         <p class="text-secondary small">{{ plan.description|default:"Subscription access for tutor assessments." }}</p>
                         <h2 class="fw-bold mb-1">{{ plan.currency }} {{ plan.price }}</h2>
-                        <p class="text-secondary small mb-3">{{ plan.duration_months }} month(s){% if plan.discount_percent %} · {{ plan.discount_percent }}% discount{% endif %}</p>
+                        <p class="text-secondary small mb-3">{{ plan.duration_months }} month(s){% if plan.discount_percent %} &middot; {{ plan.discount_percent }}% discount{% endif %}</p>
                         {% if plan.upgrade_credit %}
                             <p class="small text-success fw-semibold">Estimated upgrade credit: {{ plan.currency }} {{ plan.upgrade_credit }}</p>
+                        {% elif plan.is_blocked_downgrade %}
+                            <p class="small text-secondary fw-semibold">Available after your current plan ends.</p>
                         {% endif %}
                         <form method="post" action="{% url 'start_subscription' plan.id %}">
                             {% csrf_token %}
-                            <button class="btn {% if plan.is_current_plan %}btn-outline-dark{% else %}btn-custom{% endif %} w-100" type="submit" {% if plan.is_current_plan %}disabled{% endif %}>
-                                {% if plan.is_current_plan %}Current Plan{% else %}Create Invoice{% endif %}
+                            <button class="btn {% if plan.is_current_plan or plan.is_blocked_downgrade %}btn-outline-dark{% else %}btn-custom{% endif %} w-100" type="submit" {% if plan.is_current_plan or plan.is_blocked_downgrade %}disabled{% endif %}>
+                                {% if plan.is_current_plan %}Current Plan{% elif plan.is_blocked_downgrade %}Locked Until Expiry{% else %}Create Invoice{% endif %}
                             </button>
                         </form>
                     </div>
                 </div>
             {% empty %}
                 <div class="col-12">
-                    <div class="bk-border p-4">
+                    <div class="dashboard-panel">
                         <p class="text-secondary mb-0">No active subscription plans have been configured yet.</p>
                     </div>
                 </div>

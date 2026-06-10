@@ -168,6 +168,67 @@ Remaining reporting enhancements:
 - Background generation for very large reports after the Phase 12 task-dispatch layer is in place.
 - Strong concurrent-session enforcement is a future security-hardening task.
 
+## Phase 11 Admin Platform Management
+
+Implemented admin operations:
+
+- Custom platform admin console beyond Django admin.
+- Tutor and student search, status review, suspension, reinstatement, and tutor verification.
+- Invoice, payment, and tutor subscription review.
+- Manual invoice paid/cancel actions with audit logging.
+- Pay-per-student pricing management.
+- Subscription plan management for monthly, quarterly, yearly, discounted, and anti-cheating-tiered plans.
+- Contact message review and conversion into support issues.
+- Support issue tracking with priority, assignment, status, and resolution notes.
+- Platform announcements for tutors, students, or all users.
+- Audit log view for admin actions.
+- Tests for admin permissions and key operational actions.
+
+Remaining admin enhancements:
+
+- Richer pagination and bulk actions for large production datasets.
+- More granular admin permissions if support staff and finance staff need separate access levels.
+
+## Phase 13 QA And Security Hardening
+
+Implemented hardening items:
+
+- Production settings enforce HTTPS redirects, secure cookies, HSTS, no-sniff headers, same-origin referrer policy, and frame denial.
+- Django deployment checks pass under production settings with required environment variables.
+- CSV/XLSX import forms reject unsupported file extensions and oversized files through `MAX_IMPORT_UPLOAD_SIZE`.
+- M-Pesa STK and C2B callbacks reject malformed JSON.
+- Optional `MPESA_CALLBACK_TOKEN` can require a shared token in `X-MPESA-CALLBACK-TOKEN` or the callback query string.
+- STK callback reconciliation rejects payloads missing `CheckoutRequestID`.
+- CSRF enforcement was tested for sensitive admin write actions.
+- Student result pages and tutor report pages were covered with data-isolation tests.
+- Additional tests cover upload validation, callback validation, callback token enforcement, and result isolation.
+
+Residual production notes:
+
+- Configure a strong `SECRET_KEY`, exact `ALLOWED_HOSTS`, exact `CSRF_TRUSTED_ORIGINS`, `REDIS_URL`, Cloudinary credentials, and M-Pesa credentials on Heroku.
+- Use a provider-compatible callback token only if the deployed M-Pesa callback URL can include a token or the provider/proxy can send the configured header.
+- Full browser automation is still a later QA enhancement; local HTTP smoke checks are currently used for rendered page verification.
+
+## Dashboard Revamp
+
+Dashboard review and revamp documentation:
+
+- `docs/DASHBOARD_AUDIT.md` records the current dashboard/report issues.
+- `docs/DASHBOARD_REVAMP.md` defines the shared layout system, modal pattern, student identity pattern, classroom membership rules, and GitHub documentation expectations.
+
+The revamp starts with tutor and classroom dashboards, then reports, student dashboard, admin console, and assessment builder.
+
+Current revamp progress:
+
+- Tutor dashboard refactored with shared dashboard layout primitives.
+- Tutor create classroom and create student forms moved into Bootstrap modals.
+- Tutor student listings show registration number as part of the primary student identity.
+- Classroom dashboard refactored with modal add/create/import actions.
+- Existing tutor-owned students can be added to or removed from a classroom by registration number without creating duplicate accounts.
+- Tutor, classroom, assessment, student reports, and assessment exports now include registration numbers in student-facing rows.
+- Student dashboard refactored with shared dashboard layout, modal todo creation, assessment calendar, reminders, notifications, and result history.
+- Admin console refactored with shared dashboard navigation, professional data tables, status pills, modal plan/pricing and announcement forms, and registration-aware student account rows.
+
 ## Local Setup
 
 From the project root:
@@ -185,6 +246,12 @@ Important local URLs:
 - Marketing website: `http://127.0.0.1:8000/`
 - Account portal: `http://127.0.0.1:8000/portal/`
 - Login/signup form: `http://127.0.0.1:8000/auth/`
+- Admin console: `http://127.0.0.1:8000/dashboard/admin/`
+- Admin users: `http://127.0.0.1:8000/dashboard/admin/users/`
+- Admin billing: `http://127.0.0.1:8000/dashboard/admin/billing/`
+- Admin plans/pricing: `http://127.0.0.1:8000/dashboard/admin/plans/`
+- Admin support: `http://127.0.0.1:8000/dashboard/admin/contacts/`
+- Admin announcements: `http://127.0.0.1:8000/dashboard/admin/announcements/`
 - Tutor billing: `http://127.0.0.1:8000/dashboard/tutor/billing/`
 - Tutor reports: `http://127.0.0.1:8000/dashboard/tutor/reports/`
 - Student dashboard: `http://127.0.0.1:8000/dashboard/student/`
@@ -235,16 +302,29 @@ Important variables:
 - `MPESA_CONSUMER_SECRET`
 - `MPESA_SHORTCODE`
 - `MPESA_PASSKEY`
+- `MPESA_CALLBACK_TOKEN`
+- `MAX_IMPORT_UPLOAD_SIZE`
 
 SQLite is used locally when `DATABASE_URL` is empty.
 
 ## Background Tasks
 
-Development will use a Python threading backend once the task dispatch layer is implemented.
+Application code dispatches background work through `core.tasking.dispatch_task`.
 
-Production will use Celery and Redis. The production settings fail loudly if Celery is selected but `REDIS_URL` is missing.
+Development uses Python threading by default and does not require Redis. Tests can run tasks inline with `BACKGROUND_TASK_SYNCHRONOUS=True`.
 
-Application code should call one internal task dispatch API in future phases instead of calling `threading.Thread` or Celery directly.
+Production uses Celery and Redis by default. The production settings fail loudly if Celery is selected but `REDIS_URL` is missing.
+
+Implemented jobs:
+
+- Email notification dispatch.
+- Due reminder dispatch with in-app notifications and email.
+- Stale pending payment failure for retry cleanup.
+- Assessment report snapshot generation.
+- Old task log cleanup.
+- Old read notification cleanup.
+
+Admins can view task logs and manually queue operational jobs at `http://127.0.0.1:8000/dashboard/admin/background-jobs/`.
 
 ## Deployment Direction
 
@@ -257,6 +337,12 @@ The intended production platform is Heroku with:
 - Gunicorn
 - Whitenoise
 - Celery worker dyno
+
+Deployment artifacts:
+
+- `Procfile` defines release, web, and worker processes.
+- `app.json` documents Heroku add-ons, formation, and required config vars.
+- `DEPLOYMENT.md` contains the full Heroku setup and verification checklist.
 
 ## Verification
 

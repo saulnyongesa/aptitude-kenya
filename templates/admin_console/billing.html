@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Billing{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Billing</h1>
+                <p class="dashboard-subtitle">Review invoices, payments, and tutor subscriptions without exposing public payment methods.</p>
+            </div>
+            <div class="dashboard-actions">
+                <a class="btn btn-custom" href="{% url 'admin_plans' %}"><i class="fas fa-tags"></i>Plans & Pricing</a>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="dashboard-panel mb-4">
+            <form class="row g-3" method="get">
+                <div class="col-md-5"><input class="form-control p-3 bg-light border-0" name="q" value="{{ request.GET.q }}" placeholder="Invoice, tutor, assessment"></div>
+                <div class="col-md-4">
+                    <select class="form-select p-3 bg-light border-0" name="status">
+                        <option value="">All statuses</option>
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="paid" {% if request.GET.status == 'paid' %}selected{% endif %}>Paid</option>
+                        <option value="cancelled" {% if request.GET.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><button class="btn btn-custom w-100" type="submit">Filter</button></div>
+            </form>
+        </div>
+
+        <div class="dashboard-panel mb-4">
+            <h2 class="dashboard-panel-title mb-3">Invoices</h2>
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>Reference</th><th>Tutor</th><th>Type</th><th>Status</th><th>Total</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                            <tr>
+                                <td class="fw-semibold">{{ invoice.reference }}</td>
+                                <td>{{ invoice.tutor.email }}</td>
+                                <td>{{ invoice.get_invoice_type_display }}</td>
+                                <td>
+                                    {% if invoice.status == 'paid' %}<span class="status-pill success">{{ invoice.get_status_display }}</span>
+                                    {% elif invoice.status == 'cancelled' %}<span class="status-pill danger">{{ invoice.get_status_display }}</span>
+                                    {% else %}<span class="status-pill warning">{{ invoice.get_status_display }}</span>{% endif %}
+                                </td>
+                                <td>{{ invoice.currency }} {{ invoice.total_amount }}</td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                                        {% if invoice.status != 'paid' %}
+                                            <form method="post" action="{% url 'admin_invoice_action' invoice.id %}">{% csrf_token %}<input type="hidden" name="action" value="mark_paid"><button class="btn btn-outline-dark btn-sm" type="submit">Mark Paid</button></form>
+                                        {% endif %}
+                                        {% if invoice.status != 'paid' and invoice.status != 'cancelled' %}
+                                            <form method="post" action="{% url 'admin_invoice_action' invoice.id %}">{% csrf_token %}<input type="hidden" name="action" value="cancel"><button class="btn btn-outline-dark btn-sm" type="submit">Cancel</button></form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-secondary">No invoices found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="dashboard-panel h-100">
+                    <h2 class="dashboard-panel-title mb-3">Recent Payments</h2>
+                    {% for payment in payments %}
+                        <div class="border-bottom pb-2 mb-2 small">
+                            <strong>{{ payment.invoice.reference }}</strong>
+                            <span class="d-block text-secondary">{{ payment.get_status_display }} &middot; {{ payment.currency }} {{ payment.amount }}</span>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No payments yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="dashboard-panel h-100">
+                    <h2 class="dashboard-panel-title mb-3">Subscriptions</h2>
+                    {% for subscription in subscriptions %}
+                        <div class="border-bottom pb-2 mb-2 small">
+                            <strong>{{ subscription.tutor.email }}</strong>
+                            <span class="d-block text-secondary">{{ subscription.plan.name }} &middot; {{ subscription.get_status_display }} &middot; {{ subscription.ends_at|date:"M d, Y" }}</span>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">No subscriptions yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

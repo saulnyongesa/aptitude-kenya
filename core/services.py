@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from openpyxl import load_workbook
 
-from .models import Choice, Classroom, Exam, Invoice, MpesaTransaction, Payment, PlatformPricing, ProctorLog, Question, QuestionBankItem, QuestionSection, StudentAnswer, StudentNotification, StudentProfile, StudentReminder, StudentTodo, Submission, SubscriptionPlan, TutorProfile, TutorSubscription, User
+from .models import AuditLog, Choice, Classroom, ContactMessage, Exam, Invoice, MpesaTransaction, Payment, PlatformAnnouncement, PlatformPricing, ProctorLog, Question, QuestionBankItem, QuestionSection, StudentAnswer, StudentNotification, StudentProfile, StudentReminder, StudentTodo, Submission, SubscriptionPlan, SupportIssue, TutorProfile, TutorSubscription, User
 
 
 def build_unique_username(email):
@@ -110,6 +110,33 @@ def assign_student_to_classroom(*, tutor, classroom, student):
     if not StudentProfile.objects.filter(tutor=tutor, user=student).exists():
         raise PermissionError("Student is not owned by this tutor.")
     classroom.students.add(student)
+    return classroom
+
+
+def assign_existing_student_by_registration(*, tutor, classroom, registration_number):
+    """Attach an existing tutor-owned student by registration number.
+
+    Returns the student user and whether a new classroom membership was created.
+    """
+    if classroom.tutor_id != tutor.id:
+        raise PermissionError("Classroom is not owned by this tutor.")
+    profile = StudentProfile.objects.select_related("user").get(
+        tutor=tutor,
+        registration_number=registration_number,
+    )
+    already_assigned = classroom.students.filter(id=profile.user_id).exists()
+    if not already_assigned:
+        classroom.students.add(profile.user)
+    return profile.user, not already_assigned
+
+
+def remove_student_from_classroom(*, tutor, classroom, student):
+    """Remove a tutor-owned student from a classroom without deleting the account."""
+    if classroom.tutor_id != tutor.id:
+        raise PermissionError("Classroom is not owned by this tutor.")
+    if not StudentProfile.objects.filter(tutor=tutor, user=student).exists():
+        raise PermissionError("Student is not owned by this tutor.")
+    classroom.students.remove(student)
     return classroom
 
 
@@ -296,18 +323,33 @@ def get_or_create_assessment_invoice(*, tutor, exam):
 def create_subscription_invoice(*, tutor, plan):
     """Create a pending invoice for a tutor subscription plan.
 
-    A tutor cannot buy the same active plan again. When they choose a
-    different plan, unused value from the current plan is carried as an
-    upgrade credit on the new invoice.
+    A tutor cannot buy the same active plan again. During an active
+    subscription they may only move to a higher-priced plan. When they choose
+    an upgrade, unused value from the current plan is carried as a credit on
+    the new invoice.
     """
     active_subscription = get_active_subscription(tutor=tutor)
     if active_subscription and active_subscription.plan_id == plan.id:
         raise ValueError("You already have this subscription plan active.")
+    if active_subscription and not _is_subscription_upgrade(current_plan=active_subscription.plan, new_plan=plan):
+        raise ValueError("You can only upgrade while your current subscription is active. You can choose a lower plan after the current plan ends.")
+
     subtotal = plan.price
     discount_amount = (subtotal * plan.discount_percent / Decimal("100")).quantize(Decimal("0.01"))
     upgrade_credit = estimate_subscription_upgrade_credit(tutor=tutor, new_plan=plan)
     discount_amount = min(subtotal, discount_amount + upgrade_credit)
     total_amount = subtotal - discount_amount
+    matching_invoice = _matching_pending_subscription_invoice(
+        tutor=tutor,
+        plan=plan,
+        currency=plan.currency,
+        subtotal=subtotal,
+        discount_amount=discount_amount,
+        total_amount=total_amount,
+    )
+    if matching_invoice:
+        return matching_invoice
+
     return Invoice.objects.create(
         tutor=tutor,
         subscription_plan=plan,
@@ -327,6 +369,8 @@ def estimate_subscription_upgrade_credit(*, tutor, new_plan):
     active_subscription = get_active_subscription(tutor=tutor)
     if not active_subscription or active_subscription.plan_id == new_plan.id:
         return Decimal("0.00")
+    if not _is_subscription_upgrade(current_plan=active_subscription.plan, new_plan=new_plan):
+        return Decimal("0.00")
     if not active_subscription.starts_at or not active_subscription.ends_at:
         return Decimal("0.00")
     now = timezone.now()
@@ -336,6 +380,27 @@ def estimate_subscription_upgrade_credit(*, tutor, new_plan):
         return Decimal("0.00")
     credit = active_subscription.plan.price * (remaining_seconds / total_seconds)
     return min(new_plan.price, credit.quantize(Decimal("0.01")))
+
+
+def _is_subscription_upgrade(*, current_plan, new_plan):
+    """Return True when the new plan is higher value than the current plan."""
+    return new_plan.price > current_plan.price
+
+
+def _matching_pending_subscription_invoice(*, tutor, plan, currency, subtotal, discount_amount, total_amount):
+    """Reuse an unpaid matching invoice instead of duplicating the same plan/price."""
+    return Invoice.objects.filter(
+        tutor=tutor,
+        subscription_plan=plan,
+        invoice_type=Invoice.TYPE_SUBSCRIPTION,
+        status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_PENDING],
+        currency=currency,
+        unit_amount=plan.price,
+        quantity=1,
+        subtotal=subtotal,
+        discount_amount=discount_amount,
+        total_amount=total_amount,
+    ).order_by("-created_at").first()
 
 
 def _subscription_invoice_notes(*, plan, upgrade_credit):
@@ -398,7 +463,12 @@ def activate_subscription_from_invoice(*, invoice):
         return None
     now = timezone.now()
     current = get_active_subscription(tutor=invoice.tutor)
-    starts_at = current.ends_at if current else now
+    is_upgrade = bool(current and current.plan_id != invoice.subscription_plan_id)
+    starts_at = now
+    if is_upgrade:
+        current.status = TutorSubscription.STATUS_CANCELLED
+        current.ends_at = now
+        current.save(update_fields=["status", "ends_at"])
     ends_at = _add_months(starts_at, invoice.subscription_plan.duration_months)
     return TutorSubscription.objects.update_or_create(
         invoice=invoice,
@@ -433,6 +503,8 @@ def handle_mpesa_stk_callback(payload):
     merchant_request_id = callback.get("MerchantRequestID", "")
     result_code = callback.get("ResultCode")
     result_description = callback.get("ResultDesc", "")
+    if not checkout_request_id:
+        raise ValueError("M-Pesa STK callback is missing CheckoutRequestID.")
     existing = MpesaTransaction.objects.filter(checkout_request_id=checkout_request_id).first()
     if existing:
         return existing
@@ -1065,6 +1137,130 @@ def _sync_assessment_total_marks(exam):
     exam.save(update_fields=["total_marks", "updated_at"])
 
 
+def log_admin_action(*, actor, action, target=None, summary="", metadata=None):
+    """Record an admin operation for accountability."""
+    return AuditLog.objects.create(
+        actor=actor,
+        action=action,
+        target_model=target.__class__.__name__ if target else "",
+        target_id=str(getattr(target, "id", "")) if target else "",
+        summary=summary,
+        metadata=metadata or {},
+    )
+
+
+def set_user_suspension(*, actor, user, is_suspended):
+    """Suspend or reinstate a platform user."""
+    if user.is_platform_admin and user.id == actor.id and is_suspended:
+        raise ValueError("You cannot suspend your own admin account.")
+    user.is_suspended = is_suspended
+    user.is_active = not is_suspended
+    user.save(update_fields=["is_suspended", "is_active"])
+    log_admin_action(
+        actor=actor,
+        action="user_suspended" if is_suspended else "user_reinstated",
+        target=user,
+        summary=f"{user.email} {'suspended' if is_suspended else 'reinstated'}.",
+    )
+    return user
+
+
+def set_tutor_verification(*, actor, tutor, is_verified):
+    """Mark a tutor profile verified or unverified."""
+    if tutor.role != User.ROLE_TUTOR:
+        raise ValueError("Only tutor accounts can be verified.")
+    profile, _ = TutorProfile.objects.get_or_create(user=tutor)
+    profile.is_verified = is_verified
+    profile.save(update_fields=["is_verified"])
+    log_admin_action(
+        actor=actor,
+        action="tutor_verified" if is_verified else "tutor_unverified",
+        target=tutor,
+        summary=f"{tutor.email} verification set to {is_verified}.",
+    )
+    return profile
+
+
+def save_platform_pricing(*, actor, pricing):
+    """Persist platform pricing and audit the change."""
+    pricing.save()
+    log_admin_action(
+        actor=actor,
+        action="pricing_updated",
+        target=pricing,
+        summary=f"Pay-per-student pricing set to {pricing.currency} {pricing.pay_per_student_rate}.",
+    )
+    return pricing
+
+
+def save_subscription_plan(*, actor, plan):
+    """Persist a subscription plan and audit the change."""
+    plan.save()
+    log_admin_action(
+        actor=actor,
+        action="subscription_plan_saved",
+        target=plan,
+        summary=f"Subscription plan saved: {plan.name}.",
+    )
+    return plan
+
+
+def cancel_invoice(*, actor, invoice):
+    """Cancel an unpaid invoice from the admin console."""
+    if invoice.status == Invoice.STATUS_PAID:
+        raise ValueError("Paid invoices cannot be cancelled.")
+    invoice.status = Invoice.STATUS_CANCELLED
+    invoice.save(update_fields=["status"])
+    log_admin_action(actor=actor, action="invoice_cancelled", target=invoice, summary=f"Invoice {invoice.reference} cancelled.")
+    return invoice
+
+
+def admin_mark_invoice_paid(*, actor, invoice):
+    """Mark an invoice paid manually and audit the operation."""
+    payment = mark_invoice_paid(invoice=invoice, method=Payment.METHOD_MANUAL, provider_reference=f"ADMIN-{invoice.reference}")
+    log_admin_action(actor=actor, action="invoice_marked_paid", target=invoice, summary=f"Invoice {invoice.reference} manually marked paid.")
+    return payment
+
+
+def create_support_issue_from_contact(*, actor, contact_message):
+    """Convert a public contact message into a trackable support issue."""
+    issue, created = SupportIssue.objects.get_or_create(
+        contact_message=contact_message,
+        defaults={
+            "subject": f"Contact from {contact_message.name}",
+            "description": contact_message.message,
+            "priority": SupportIssue.PRIORITY_NORMAL,
+            "status": SupportIssue.STATUS_OPEN,
+            "assigned_to": actor if actor.is_platform_admin else None,
+        },
+    )
+    contact_message.is_read = True
+    contact_message.save(update_fields=["is_read"])
+    if created:
+        log_admin_action(actor=actor, action="support_issue_created", target=issue, summary=f"Support issue created from contact message {contact_message.id}.")
+    return issue
+
+
+def save_support_issue(*, actor, issue):
+    """Persist support issue changes and close timestamps consistently."""
+    if issue.status in [SupportIssue.STATUS_RESOLVED, SupportIssue.STATUS_CLOSED] and not issue.resolved_at:
+        issue.resolved_at = timezone.now()
+    elif issue.status not in [SupportIssue.STATUS_RESOLVED, SupportIssue.STATUS_CLOSED]:
+        issue.resolved_at = None
+    issue.save()
+    log_admin_action(actor=actor, action="support_issue_updated", target=issue, summary=f"Support issue updated: {issue.subject}.")
+    return issue
+
+
+def save_platform_announcement(*, actor, announcement):
+    """Persist an announcement and audit the publication settings."""
+    if not announcement.created_by_id:
+        announcement.created_by = actor
+    announcement.save()
+    log_admin_action(actor=actor, action="announcement_saved", target=announcement, summary=f"Announcement saved: {announcement.title}.")
+    return announcement
+
+
 def get_tutor_report_context(*, tutor):
     """Build tutor-level performance, completion, and integrity analytics."""
     classrooms = Classroom.objects.filter(tutor=tutor, is_archived=False).order_by("name")
@@ -1100,7 +1296,7 @@ def get_tutor_report_context(*, tutor):
         "classroom_rows": classroom_rows,
         "assessment_rows": assessment_rows,
         "violation_rows": _violation_summary(proctor_logs),
-        "recent_submissions": completed.select_related("student", "exam", "exam__classroom").order_by("-submitted_at")[:12],
+        "recent_submissions": completed.select_related("student", "student__student_profile", "exam", "exam__classroom").order_by("-submitted_at")[:12],
     }
 
 
@@ -1135,7 +1331,7 @@ def get_classroom_report_context(*, tutor, classroom):
 def get_assessment_report_context(*, tutor, exam):
     """Build analytics for one tutor-owned assessment."""
     _ensure_assessment_owner(tutor=tutor, exam=exam)
-    submissions = Submission.objects.filter(exam=exam).select_related("student")
+    submissions = Submission.objects.filter(exam=exam).select_related("student", "student__student_profile")
     completed = submissions.filter(completed=True)
     proctor_logs = ProctorLog.objects.filter(exam=exam)
     return {
@@ -1198,11 +1394,13 @@ def get_admin_report_context():
 def tutor_assessment_export_rows(*, tutor, exam):
     """Return Excel-compatible CSV rows for an assessment report."""
     context = get_assessment_report_context(tutor=tutor, exam=exam)
-    rows = [["Student", "Email", "Attempt", "Score", "Status", "Submitted", "Violations"]]
+    rows = [["Student", "Registration Number", "Email", "Attempt", "Score", "Status", "Submitted", "Violations"]]
     for submission in context["submission_rows"]:
+        profile = _student_profile_for_report(student=submission.student)
         rows.append(
             [
                 submission.student.fullname,
+                profile.registration_number if profile else "",
                 submission.student.email,
                 submission.attempt_number,
                 submission.score,
@@ -1239,11 +1437,13 @@ def _assessment_summary(*, exam):
 
 def _classroom_student_rows(*, classroom):
     rows = []
-    for student in classroom.students.order_by("fullname", "email"):
+    for student in classroom.students.select_related("student_profile").order_by("fullname", "email"):
+        profile = _student_profile_for_report(student=student)
         submissions = Submission.objects.filter(student=student, exam__classroom=classroom, completed=True)
         rows.append(
             {
                 "student": student,
+                "profile": profile,
                 "completed_count": submissions.count(),
                 "average_score": _average_score(submissions),
                 "disqualified_count": submissions.filter(is_disqualified=True).count(),
@@ -1251,6 +1451,14 @@ def _classroom_student_rows(*, classroom):
             }
         )
     return rows
+
+
+def _student_profile_for_report(*, student):
+    """Return a student's profile for report identity fields when available."""
+    try:
+        return student.student_profile
+    except StudentProfile.DoesNotExist:
+        return None
 
 
 def _question_difficulty_rows(*, exam):

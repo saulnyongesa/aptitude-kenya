@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Background Jobs{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Background Jobs</h1>
+                <p class="dashboard-subtitle">Current backend: {{ task_backend|title }}. Development can run threaded jobs; production uses the configured worker backend.</p>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="dashboard-panel mb-4">
+            <h2 class="dashboard-panel-title mb-3">Run Operational Job</h2>
+            <div class="dashboard-actions justify-content-start">
+                <form method="post" action="{% url 'admin_dispatch_background_job' %}">{% csrf_token %}<input type="hidden" name="job_name" value="reminders.dispatch_due"><button class="btn btn-custom" type="submit">Dispatch Reminders</button></form>
+                <form method="post" action="{% url 'admin_dispatch_background_job' %}">{% csrf_token %}<input type="hidden" name="job_name" value="payments.fail_stale_pending"><button class="btn btn-outline-dark" type="submit">Fail Stale Payments</button></form>
+                <form method="post" action="{% url 'admin_dispatch_background_job' %}">{% csrf_token %}<input type="hidden" name="job_name" value="cleanup.old_task_logs"><button class="btn btn-outline-dark" type="submit">Clean Task Logs</button></form>
+                <form method="post" action="{% url 'admin_dispatch_background_job' %}">{% csrf_token %}<input type="hidden" name="job_name" value="cleanup.old_read_notifications"><button class="btn btn-outline-dark" type="submit">Clean Notifications</button></form>
+            </div>
+        </div>
+
+        <div class="dashboard-panel">
+            <h2 class="dashboard-panel-title mb-3">Task Logs</h2>
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>Task</th><th>Backend</th><th>Status</th><th>Queued</th><th>Finished</th><th>Error</th></tr></thead>
+                    <tbody>
+                        {% for task in task_logs %}
+                            <tr>
+                                <td class="fw-semibold">{{ task.task_name }}</td>
+                                <td>{{ task.get_backend_display }}</td>
+                                <td><span class="status-pill neutral">{{ task.get_status_display }}</span></td>
+                                <td>{{ task.created_at|date:"M d, Y H:i" }}</td>
+                                <td>{% if task.finished_at %}{{ task.finished_at|date:"M d, Y H:i" }}{% else %}-{% endif %}</td>
+                                <td class="small text-danger">{{ task.error_message|truncatechars:90 }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-secondary">No background tasks have been queued yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

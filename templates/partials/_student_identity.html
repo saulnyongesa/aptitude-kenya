@@ -1,0 +1,5 @@
+<span class="student-identity">
+    <strong>{{ student.fullname|default:student.email }}</strong>
+    <span>{{ registration_number|default:student.registration_id|default:"No registration number" }}</span>
+    <span>{{ student.email }}</span>
+</span>

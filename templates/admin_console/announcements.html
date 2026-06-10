@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Announcements{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Announcements</h1>
+                <p class="dashboard-subtitle">Publish notices for tutors, students, or all platform users.</p>
+            </div>
+            <div class="dashboard-actions">
+                <button class="btn btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#announcementModal"><i class="fas fa-plus"></i>{% if announcement %}Edit Notice{% else %}New Notice{% endif %}</button>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="dashboard-panel">
+            <h2 class="dashboard-panel-title mb-3">Published Notices</h2>
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>Title</th><th>Audience</th><th>Status</th><th>Created</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                        {% for item in announcements %}
+                            <tr>
+                                <td class="fw-semibold">{{ item.title }}</td>
+                                <td>{{ item.get_audience_display }}</td>
+                                <td>{% if item.is_active %}<span class="status-pill success">Active</span>{% else %}<span class="status-pill danger">Inactive</span>{% endif %}</td>
+                                <td>{{ item.created_at|date:"M d, Y" }}</td>
+                                <td class="text-end"><a class="btn btn-outline-dark btn-sm" href="{% url 'admin_announcement_edit' item.id %}">Edit</a></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="text-secondary">No announcements yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="modal fade" id="announcementModal" tabindex="-1" aria-labelledby="announcementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="announcementModalLabel">{% if announcement %}Edit Announcement{% else %}New Announcement{% endif %}</h2>
+                    <p class="text-secondary small mb-0">Control audience, activity status, and publication dates.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="modal-body admin-form">
+                    {{ form.as_p }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Save Announcement</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}

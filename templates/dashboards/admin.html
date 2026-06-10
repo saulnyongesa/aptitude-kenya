@@ -3,59 +3,43 @@
 {% block title %}Admin Dashboard{% endblock title %}
 
 {% block content %}
-<section class="py-5">
+<section class="dashboard-shell">
     <div class="container">
-        <div class="mb-4">
-            <p class="text-uppercase small fw-bold text-success mb-1">Platform Admin</p>
-            <h1 class="fw-bold mb-1">Operations Overview</h1>
-            <p class="text-secondary mb-0">Account governance and revenue overview.</p>
-        </div>
-        <div class="row g-3">
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Tutors</p>
-                    <h2 class="fw-bold mb-0">{{ tutor_count }}</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Students</p>
-                    <h2 class="fw-bold mb-0">{{ student_count }}</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Suspended</p>
-                    <h2 class="fw-bold mb-0">{{ suspended_count }}</h2>
-                </div>
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Platform Admin</p>
+                <h1 class="dashboard-title">Operations Overview</h1>
+                <p class="dashboard-subtitle">Account governance, revenue, usage, and platform integrity at a glance.</p>
             </div>
         </div>
-        <div class="row g-3 mt-1">
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Paid Revenue</p>
-                    <h2 class="fw-bold mb-0">KES {{ paid_revenue }}</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Pending Revenue</p>
-                    <h2 class="fw-bold mb-0">KES {{ pending_revenue }}</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="bk-border p-4">
-                    <p class="small text-muted text-uppercase fw-bold mb-1">Paid Invoices</p>
-                    <h2 class="fw-bold mb-0">{{ paid_invoice_count }}</h2>
-                </div>
-            </div>
+
+        {% include 'admin_console/_nav.html' %}
+
+        <div class="dashboard-grid metrics mb-4">
+            <div class="metric-tile"><p class="metric-label">Tutors</p><p class="metric-value">{{ tutor_count }}</p><p class="metric-note">Registered tutor accounts.</p></div>
+            <div class="metric-tile"><p class="metric-label">Students</p><p class="metric-value">{{ student_count }}</p><p class="metric-note">Provisioned student accounts.</p></div>
+            <div class="metric-tile"><p class="metric-label">Suspended</p><p class="metric-value">{{ suspended_count }}</p><p class="metric-note">Accounts blocked from access.</p></div>
+            <div class="metric-tile"><p class="metric-label">Paid Invoices</p><p class="metric-value">{{ paid_invoice_count }}</p><p class="metric-note">Invoices marked paid.</p></div>
         </div>
-        <div class="row g-4 mt-1">
+
+        <div class="dashboard-grid metrics mb-4">
+            <div class="metric-tile"><p class="metric-label">Paid Revenue</p><p class="metric-value">KES {{ paid_revenue }}</p><p class="metric-note">Confirmed platform revenue.</p></div>
+            <div class="metric-tile"><p class="metric-label">Pending Revenue</p><p class="metric-value">KES {{ pending_revenue }}</p><p class="metric-note">Open unpaid invoices.</p></div>
+            <div class="metric-tile"><p class="metric-label">Assessments</p><p class="metric-value">{{ summary.assessment_count }}</p><p class="metric-note">Created assessments.</p></div>
+            <div class="metric-tile"><p class="metric-label">Violations</p><p class="metric-value">{{ summary.violation_count }}</p><p class="metric-note">Recorded integrity events.</p></div>
+        </div>
+
+        <div class="row g-4">
             <div class="col-lg-7">
-                <div class="bk-border p-4">
-                    <h4 class="fw-bold mb-3">Tutor Usage</h4>
+                <div class="dashboard-panel h-100">
+                    <div class="dashboard-panel-header">
+                        <div>
+                            <h2 class="dashboard-panel-title">Tutor Usage</h2>
+                            <p class="dashboard-panel-subtitle">Usage, completion, score, and integrity trends per tutor.</p>
+                        </div>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table align-middle">
+                        <table class="table data-table align-middle">
                             <thead>
                                 <tr>
                                     <th>Tutor</th>
@@ -69,7 +53,10 @@
                             <tbody>
                                 {% for row in top_tutors %}
                                     <tr>
-                                        <td class="fw-semibold">{{ row.tutor.fullname|default:row.tutor.email }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ row.tutor.fullname|default:row.tutor.email }}</div>
+                                            <div class="text-secondary small">{{ row.tutor.email }}</div>
+                                        </td>
                                         <td>{{ row.student_count }}</td>
                                         <td>{{ row.assessment_count }}</td>
                                         <td>{{ row.completed_count }}</td>
@@ -85,8 +72,8 @@
                 </div>
             </div>
             <div class="col-lg-5">
-                <div class="bk-border p-4">
-                    <h4 class="fw-bold mb-3">Integrity Events</h4>
+                <div class="dashboard-panel h-100">
+                    <h2 class="dashboard-panel-title mb-3">Integrity Events</h2>
                     {% for row in violation_rows %}
                         <div class="d-flex justify-content-between border-bottom py-2">
                             <span>{{ row.label }}</span>

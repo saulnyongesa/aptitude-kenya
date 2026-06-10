@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Users{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Users</h1>
+                <p class="dashboard-subtitle">Manage tutor and student access, verification, suspension, schools, and registration records.</p>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="dashboard-panel mb-4">
+            <form class="row g-3" method="get">
+                <div class="col-md-6"><input class="form-control p-3 bg-light border-0" name="q" value="{{ request.GET.q }}" placeholder="Search name, email, school, registration"></div>
+                <div class="col-md-3">
+                    <select class="form-select p-3 bg-light border-0" name="role">
+                        <option value="">All roles</option>
+                        <option value="tutor" {% if request.GET.role == 'tutor' %}selected{% endif %}>Tutors</option>
+                        <option value="student" {% if request.GET.role == 'student' %}selected{% endif %}>Students</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><button class="btn btn-custom w-100" type="submit">Search</button></div>
+            </form>
+        </div>
+
+        <div class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <div>
+                    <h2 class="dashboard-panel-title">Managed Accounts</h2>
+                    <p class="dashboard-panel-subtitle">Admin-only accounts are not listed here.</p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>User</th><th>Role</th><th>School</th><th>Registration</th><th>Status</th><th>Joined</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td>
+                                    <div class="{% if user.role == 'student' %}student-identity{% endif %}">
+                                        <strong>{{ user.fullname|default:user.email }}</strong>
+                                        {% if user.role == 'student' %}<span>{{ user.student_profile.registration_number|default:user.registration_id }}</span>{% endif %}
+                                        <span class="text-secondary small">{{ user.email }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ user.get_role_display }}</td>
+                                <td class="small">
+                                    {% if user.role == 'tutor' %}{{ user.tutor_profile.institution_name|default:"-" }}{% else %}{{ user.student_profile.school_name|default:"-" }}{% endif %}
+                                </td>
+                                <td>{% if user.role == 'student' %}{{ user.student_profile.registration_number|default:user.registration_id }}{% else %}-{% endif %}</td>
+                                <td>{% if user.is_suspended %}<span class="status-pill danger">Suspended</span>{% else %}<span class="status-pill success">Active</span>{% endif %}</td>
+                                <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                                        {% if user.role == 'tutor' %}
+                                            <form method="post" action="{% url 'admin_user_action' user.id %}">{% csrf_token %}
+                                                <input type="hidden" name="action" value="{% if user.tutor_profile.is_verified %}unverify_tutor{% else %}verify_tutor{% endif %}">
+                                                <button class="btn btn-outline-dark btn-sm" type="submit">{% if user.tutor_profile.is_verified %}Unverify{% else %}Verify{% endif %}</button>
+                                            </form>
+                                        {% endif %}
+                                        <form method="post" action="{% url 'admin_user_action' user.id %}">{% csrf_token %}
+                                            <input type="hidden" name="action" value="{% if user.is_suspended %}reinstate{% else %}suspend{% endif %}">
+                                            <button class="btn btn-outline-dark btn-sm" type="submit">{% if user.is_suspended %}Reinstate{% else %}Suspend{% endif %}</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="7" class="text-secondary">No users found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

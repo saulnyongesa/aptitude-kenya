@@ -3,28 +3,35 @@
 {% block title %}My Reports{% endblock title %}
 
 {% block content %}
-<section class="py-5">
+<section class="dashboard-shell">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
+        <div class="dashboard-topbar">
             <div>
-                <p class="text-uppercase small fw-bold text-success mb-1">My Reports</p>
-                <h1 class="fw-bold mb-1">{{ request.user.fullname }}</h1>
-                <p class="text-secondary mb-0">{{ request.user.student_profile.school_name }} · {{ request.user.student_profile.registration_number }}</p>
+                <p class="dashboard-eyebrow">My Reports</p>
+                <h1 class="dashboard-title">{{ request.user.fullname }}</h1>
+                <p class="dashboard-subtitle">{{ request.user.student_profile.school_name }} &middot; {{ request.user.student_profile.registration_number }}</p>
             </div>
-            <button class="btn btn-outline-dark align-self-md-start" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+            <div class="dashboard-actions">
+                <button class="btn btn-outline-dark" type="button" onclick="window.print()"><i class="fas fa-print"></i>Print</button>
+            </div>
         </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Completed</p><h2 class="fw-bold mb-0">{{ summary.completed_count }}</h2></div></div>
-            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Active</p><h2 class="fw-bold mb-0">{{ summary.active_count }}</h2></div></div>
-            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Pending</p><h2 class="fw-bold mb-0">{{ summary.pending_count }}</h2></div></div>
-            <div class="col-6 col-lg-3"><div class="bk-border p-3 h-100"><p class="small text-muted text-uppercase fw-bold mb-1">Avg Score</p><h2 class="fw-bold mb-0">{{ summary.average_score|floatformat:1 }}</h2></div></div>
+        <div class="dashboard-grid metrics mb-4">
+            <div class="metric-tile"><p class="metric-label">Completed</p><p class="metric-value">{{ summary.completed_count }}</p><p class="metric-note">Finished assessments.</p></div>
+            <div class="metric-tile"><p class="metric-label">Active</p><p class="metric-value">{{ summary.active_count }}</p><p class="metric-note">Currently available.</p></div>
+            <div class="metric-tile"><p class="metric-label">Pending</p><p class="metric-value">{{ summary.pending_count }}</p><p class="metric-note">Scheduled or upcoming.</p></div>
+            <div class="metric-tile"><p class="metric-label">Avg Score</p><p class="metric-value">{{ summary.average_score|floatformat:1 }}</p><p class="metric-note">Released completed results.</p></div>
         </div>
 
-        <div class="bk-border p-4">
-            <h4 class="fw-bold mb-3">Result History</h4>
+        <div class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <div>
+                    <h2 class="dashboard-panel-title">Result History</h2>
+                    <p class="dashboard-panel-subtitle">Personal assessment outcomes for {{ request.user.student_profile.registration_number }}.</p>
+                </div>
+            </div>
             <div class="table-responsive">
-                <table class="table align-middle">
+                <table class="table data-table align-middle">
                     <thead><tr><th>Assessment</th><th>Classroom</th><th>Score</th><th>Status</th><th>Submitted</th></tr></thead>
                     <tbody>
                         {% for submission in submissions %}
@@ -32,7 +39,7 @@
                                 <td class="fw-semibold">{{ submission.exam.title }}</td>
                                 <td>{{ submission.exam.classroom.name }}</td>
                                 <td>{{ submission.score|floatformat:1 }}</td>
-                                <td>{% if submission.is_disqualified %}Disqualified{% else %}Completed{% endif %}</td>
+                                <td>{% if submission.is_disqualified %}<span class="status-pill danger">Disqualified</span>{% else %}<span class="status-pill success">Completed</span>{% endif %}</td>
                                 <td>{{ submission.submitted_at|date:"M d, Y H:i" }}</td>
                             </tr>
                         {% empty %}

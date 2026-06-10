@@ -176,7 +176,7 @@ Exit gate:
 - [x] Add student profile.
 - [x] Add result history.
 - [x] Add feedback visibility based on tutor settings.
-- [~] Add background reminder dispatch through the task layer. Reminder records are ready; actual dispatch is tracked in Phase 12 with the threading/Celery abstraction.
+- [x] Add background reminder dispatch through the task layer.
 - [x] Add tests for student assignment visibility.
 
 Exit gate:
@@ -246,7 +246,7 @@ Exit gate:
 - [~] Add export to PDF. Reports are printable/PDF-ready through the browser print flow; native server-generated PDF remains a later enhancement.
 - [x] Add printable reports.
 - [x] Add admin platform analytics.
-- [~] Generate heavy reports through the task layer. Report services are isolated for task execution; the thread/Celery task dispatcher is scheduled for Phase 12.
+- [x] Generate heavy reports through the task layer.
 
 Exit gate:
 
@@ -254,84 +254,84 @@ Exit gate:
 
 ## Phase 11: Admin Platform Management
 
-- [ ] Build admin dashboard beyond Django admin.
-- [ ] Manage tutors.
-- [ ] Manage students.
-- [ ] Manage subscriptions.
-- [ ] Manage pricing.
-- [ ] Manage payments.
-- [ ] Manage announcements.
-- [ ] Manage contact messages.
-- [ ] Manage support issues.
-- [ ] View audit logs.
-- [ ] View platform usage.
-- [ ] Suspend abusive accounts.
+- [x] Build admin dashboard beyond Django admin.
+- [x] Manage tutors.
+- [x] Manage students.
+- [x] Manage subscriptions.
+- [x] Manage pricing.
+- [x] Manage payments.
+- [x] Manage announcements.
+- [x] Manage contact messages.
+- [x] Manage support issues.
+- [x] View audit logs.
+- [x] View platform usage.
+- [x] Suspend abusive accounts.
 
 Exit gate:
 
-- [ ] The platform can be operated by a non-developer administrator.
+- [x] The platform can be operated by a non-developer administrator.
 
 ## Phase 12: Notifications And Background Jobs
 
-- [ ] Implement task dispatch abstraction.
-- [ ] Implement development threading backend.
-- [ ] Implement production Celery backend.
-- [ ] Add email notification service.
-- [ ] Add reminder scheduling.
-- [ ] Add payment retry/status jobs.
-- [ ] Add report generation jobs.
-- [ ] Add cleanup jobs.
-- [ ] Add task logging.
-- [ ] Add failure handling.
-- [ ] Add tests for task dispatch selection.
+- [x] Implement task dispatch abstraction.
+- [x] Implement development threading backend.
+- [x] Implement production Celery backend.
+- [x] Add email notification service.
+- [x] Add reminder scheduling.
+- [x] Add payment retry/status jobs.
+- [x] Add report generation jobs.
+- [x] Add cleanup jobs.
+- [x] Add task logging.
+- [x] Add failure handling.
+- [x] Add tests for task dispatch selection.
 
 Exit gate:
 
-- [ ] Development works without Redis, and production uses Redis/Celery automatically.
+- [x] Development works without Redis, and production uses Redis/Celery automatically.
 
 ## Phase 13: Testing, QA, And Security Hardening
 
-- [ ] Add unit tests for models and services.
-- [ ] Add integration tests for auth, assessments, payments, submissions, and proctoring.
-- [ ] Add permission tests.
-- [ ] Add form validation tests.
-- [ ] Add payment callback tests.
-- [ ] Add browser tests for key flows where practical.
-- [ ] Run Django deployment checks.
-- [ ] Review CSRF and authentication.
-- [ ] Review data isolation.
-- [ ] Review file upload security.
-- [ ] Review payment callback security.
-- [ ] Review environment variable handling.
+- [x] Add unit tests for models and services.
+- [x] Add integration tests for auth, assessments, payments, submissions, and proctoring.
+- [x] Add permission tests.
+- [x] Add form validation tests.
+- [x] Add payment callback tests.
+- [~] Add browser tests for key flows where practical. Live HTTP smoke tests were used locally; full browser automation remains a later QA enhancement.
+- [x] Run Django deployment checks.
+- [x] Review CSRF and authentication.
+- [x] Review data isolation.
+- [x] Review file upload security.
+- [x] Review payment callback security.
+- [x] Review environment variable handling.
 
 Exit gate:
 
-- [ ] Core workflows are tested and production risks are documented or resolved.
+- [x] Core workflows are tested and production risks are documented or resolved.
 
 ## Phase 14: Deployment
 
-- [ ] Configure Heroku app.
-- [ ] Configure Heroku PostgreSQL.
-- [ ] Configure Cloudinary.
-- [ ] Configure Redis for Celery.
-- [ ] Configure M-Pesa credentials.
-- [ ] Configure email provider.
-- [ ] Configure production environment variables.
-- [ ] Run migrations on Heroku.
-- [ ] Collect static files.
-- [ ] Start web dyno.
-- [ ] Start worker dyno.
-- [ ] Verify landing page.
-- [ ] Verify tutor registration.
-- [ ] Verify student login.
-- [ ] Verify M-Pesa sandbox or live payment.
-- [ ] Verify assessment publishing.
-- [ ] Verify exam taking.
-- [ ] Verify proctoring logs.
+- [~] Configure Heroku app. `Procfile`, `app.json`, and deployment guide are ready; actual Heroku app creation requires account access.
+- [~] Configure Heroku PostgreSQL. Add-on instructions are documented; actual add-on provisioning requires Heroku access.
+- [x] Configure Cloudinary.
+- [~] Configure Redis for Celery. Production settings and worker are ready; actual add-on provisioning requires Heroku access.
+- [~] Configure M-Pesa credentials. Environment variables and callback endpoints are ready; sandbox/live credentials must be supplied.
+- [x] Configure email provider.
+- [x] Configure production environment variables.
+- [~] Run migrations on Heroku. Release phase is configured; local production-settings migration check passed.
+- [x] Collect static files.
+- [~] Start web dyno. Procfile web command is ready; dyno scaling requires Heroku access.
+- [~] Start worker dyno. Procfile worker command is ready; dyno scaling requires Heroku access.
+- [~] Verify landing page. Local smoke test passed; production verification requires deployed URL.
+- [~] Verify tutor registration. Local automated tests passed; production verification requires deployed URL.
+- [~] Verify student login. Local automated tests passed; production verification requires deployed URL.
+- [~] Verify M-Pesa sandbox or live payment. Callback security/reconciliation tests pass; live STK/C2B credentials and Daraja QA remain external.
+- [x] Verify assessment publishing.
+- [x] Verify exam taking.
+- [x] Verify proctoring logs.
 
 Exit gate:
 
-- [ ] The platform runs correctly in production with web and worker processes.
+- [~] The platform runs correctly in production with web and worker processes. Code/config passed production checks locally; final confirmation requires deploying to Heroku.
 
 ## Phase 15: Launch Readiness
 
@@ -367,3 +367,15 @@ Exit gate:
 - [x] Anti-cheating
 - [ ] Reports
 - [ ] Deployment
+
+## Dashboard Revamp Track
+
+- [x] Step 1: Audit dashboard, admin console, classroom, assessment, student, and report pages.
+- [x] Step 2: Create shared dashboard layout primitives and GitHub documentation.
+- [x] Step 3: Refactor tutor dashboard with modal forms.
+- [x] Step 4: Refactor classroom dashboard with add/remove-by-registration workflow.
+- [x] Step 5: Refactor reports and exports to include registration numbers everywhere.
+- [x] Step 6: Refactor student dashboard.
+- [x] Step 7: Refactor admin console.
+- [ ] Step 8: Refactor assessment builder.
+- [ ] Step 9: Add dashboard regression tests and run final QA.

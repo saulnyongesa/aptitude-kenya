@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Plans And Pricing{% endblock title %}
+
+{% block content %}
+<section class="dashboard-shell">
+    <div class="container">
+        <div class="dashboard-topbar">
+            <div>
+                <p class="dashboard-eyebrow">Admin Console</p>
+                <h1 class="dashboard-title">Plans And Pricing</h1>
+                <p class="dashboard-subtitle">Configure pay-per-student rates and subscription tiers, including anti-cheating based pricing.</p>
+            </div>
+            <div class="dashboard-actions">
+                <button class="btn btn-custom" type="button" data-bs-toggle="modal" data-bs-target="#planModal"><i class="fas fa-plus"></i>{% if editing_plan %}Edit Plan{% else %}New Plan{% endif %}</button>
+                <button class="btn btn-outline-dark" type="button" data-bs-toggle="modal" data-bs-target="#pricingModal"><i class="fas fa-coins"></i>Pricing</button>
+            </div>
+        </div>
+
+        {% include 'admin_console/_nav.html' %}
+        {% include 'admin_console/_messages.html' %}
+
+        <div class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <div>
+                    <h2 class="dashboard-panel-title">Subscription Plans</h2>
+                    <p class="dashboard-panel-subtitle">Disable plans that should not be sold while preserving historical subscriptions.</p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table data-table align-middle">
+                    <thead><tr><th>Name</th><th>Level</th><th>Duration</th><th>Price</th><th>Discount</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                        {% for plan in plans %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">{{ plan.name }}</div>
+                                    <div class="text-secondary small">{{ plan.description|truncatechars:80 }}</div>
+                                </td>
+                                <td>{{ plan.get_anti_cheating_level_display }}</td>
+                                <td>{{ plan.duration_months }} month(s)</td>
+                                <td>{{ plan.currency }} {{ plan.price }}</td>
+                                <td>{{ plan.discount_percent }}%</td>
+                                <td>{% if plan.is_active %}<span class="status-pill success">Active</span>{% else %}<span class="status-pill danger">Inactive</span>{% endif %}</td>
+                                <td class="text-end"><a class="btn btn-outline-dark btn-sm" href="{% url 'admin_plan_edit' plan.id %}">Edit</a></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="7" class="text-secondary">No plans configured.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="modal fade" id="pricingModal" tabindex="-1" aria-labelledby="pricingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="pricingModalLabel">Pay Per Student Pricing</h2>
+                    <p class="text-secondary small mb-0">Set the default per-student rate for pay-per-assessment billing.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="form_kind" value="pricing">
+                <div class="modal-body admin-form">
+                    {{ pricing_form.as_p }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Save Pricing</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content dashboard-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="planModalLabel">{% if editing_plan %}Edit Plan{% else %}New Plan{% endif %}</h2>
+                    <p class="text-secondary small mb-0">Create monthly, quarterly, yearly, discounted, or anti-cheating tiered plans.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="form_kind" value="plan">
+                <div class="modal-body admin-form">
+                    {{ plan_form.as_p }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-custom" type="submit">Save Plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}

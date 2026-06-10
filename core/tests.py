@@ -1,12 +1,14 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Choice, Classroom, Exam, Invoice, MpesaTransaction, Payment, ProctorLog, Question, QuestionBankItem, StudentAnswer, StudentNotification, StudentProfile, StudentReminder, StudentTodo, Submission, SubscriptionPlan, TutorProfile, TutorSubscription, User
+from .models import AuditLog, BackgroundTaskLog, Choice, Classroom, ContactMessage, Exam, Invoice, MpesaTransaction, Payment, PlatformAnnouncement, PlatformPricing, ProctorLog, Question, QuestionBankItem, StudentAnswer, StudentNotification, StudentProfile, StudentReminder, StudentTodo, Submission, SubscriptionPlan, SupportIssue, TutorProfile, TutorSubscription, User
 from .services import create_assessment, create_classroom, create_mpesa_payment_attempt, create_student_account, create_subscription_invoice, create_tutor_account, get_assessment_report_context, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_overview, handle_mpesa_stk_callback, mark_invoice_paid, record_proctor_violation, save_submission_answers, submit_assessment_attempt
+from .tasking import dispatch_task, get_task_backend
 
 
 class AccountRoleTests(TestCase):
@@ -227,6 +229,90 @@ class TutorClassroomTests(TestCase):
         self.assertTrue(classroom.students.filter(id=student.id).exists())
         self.assertContains(response, "Temporary password")
 
+    def test_classroom_detail_can_add_existing_student_by_registration(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        student, _password = create_student_account(
+            tutor=self.tutor,
+            fullname="Student One",
+            email="student@example.com",
+            school_name="Test School",
+            registration_number="ADM-001",
+        )
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "add_existing_student", "registration_number": "ADM-001"},
+        )
+
+        self.assertRedirects(response, reverse("classroom_detail", args=[classroom.id]))
+        self.assertTrue(classroom.students.filter(id=student.id).exists())
+        self.assertEqual(classroom.students.count(), 1)
+
+    def test_classroom_detail_does_not_duplicate_existing_membership(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        student, _password = create_student_account(
+            tutor=self.tutor,
+            fullname="Student One",
+            email="student@example.com",
+            school_name="Test School",
+            registration_number="ADM-001",
+        )
+        classroom.students.add(student)
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "add_existing_student", "registration_number": "ADM-001"},
+            follow=True,
+        )
+
+        self.assertEqual(classroom.students.count(), 1)
+        self.assertContains(response, "already in this classroom")
+
+    def test_classroom_detail_cannot_add_another_tutors_student_by_registration(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        create_student_account(
+            tutor=self.other_tutor,
+            fullname="Other Student",
+            email="other-student@example.com",
+            school_name="Other School",
+            registration_number="ADM-001",
+        )
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "add_existing_student", "registration_number": "ADM-001"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(classroom.students.count(), 0)
+        self.assertContains(response, "No tutor-owned student was found")
+
+    def test_classroom_detail_removes_student_without_deleting_account(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        student, _password = create_student_account(
+            tutor=self.tutor,
+            fullname="Student One",
+            email="student@example.com",
+            school_name="Test School",
+            registration_number="ADM-001",
+        )
+        profile = StudentProfile.objects.get(user=student)
+        classroom.students.add(student)
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "remove_student", "profile_id": profile.id},
+        )
+
+        self.assertRedirects(response, reverse("classroom_detail", args=[classroom.id]))
+        self.assertFalse(classroom.students.filter(id=student.id).exists())
+        self.assertTrue(User.objects.filter(id=student.id).exists())
+        self.assertTrue(StudentProfile.objects.filter(id=profile.id).exists())
+
     def test_bulk_import_creates_students_and_assigns_classroom(self):
         classroom = create_classroom(tutor=self.tutor, name="Form 2A")
         self.client.force_login(self.tutor)
@@ -251,6 +337,38 @@ class TutorClassroomTests(TestCase):
         self.assertEqual(StudentProfile.objects.filter(tutor=self.tutor).count(), 2)
         self.assertEqual(classroom.students.count(), 2)
         self.assertContains(response, "Imported 2 students.")
+
+    @override_settings(MAX_IMPORT_UPLOAD_SIZE=10)
+    def test_bulk_student_import_rejects_oversized_file(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        self.client.force_login(self.tutor)
+        upload = SimpleUploadedFile(
+            "students.csv",
+            b"fullname,email,school_name,registration_number\nStudent,student@example.com,School,ADM-1\n",
+            content_type="text/csv",
+        )
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "bulk_import", "classroom_id": classroom.id, "file": upload},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(StudentProfile.objects.filter(tutor=self.tutor).count(), 0)
+        self.assertContains(response, "Upload file is too large.")
+
+    def test_bulk_student_import_rejects_unsupported_extension(self):
+        classroom = create_classroom(tutor=self.tutor, name="Form 2A")
+        self.client.force_login(self.tutor)
+        upload = SimpleUploadedFile("students.exe", b"bad", content_type="application/octet-stream")
+
+        response = self.client.post(
+            reverse("classroom_detail", args=[classroom.id]),
+            {"form_action": "bulk_import", "classroom_id": classroom.id, "file": upload},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a CSV or Excel .xlsx file.")
 
     def test_student_search_filters_tutor_owned_students(self):
         create_student_account(
@@ -424,6 +542,32 @@ class AssessmentBuilderTests(TestCase):
         self.assertEqual(exam.questions.count(), 2)
         exam.refresh_from_db()
         self.assertEqual(exam.total_marks, 3)
+
+    @override_settings(MAX_IMPORT_UPLOAD_SIZE=10)
+    def test_bulk_question_import_rejects_oversized_file(self):
+        exam = create_assessment(tutor=self.tutor, data={
+            "classroom_id": self.classroom.id,
+            "title": "Import Size Test",
+            "assessment_type": Exam.TYPE_TEST,
+            "instructions": "",
+            "duration_minutes": 60,
+            "total_marks": 0,
+            "pass_mark": 0,
+            "attempts_allowed": 1,
+            "back_btn_enabled": True,
+            "allow_late_submission": False,
+            "show_results_immediately": True,
+            "show_answers": True,
+            "randomize_questions": False,
+            "randomize_choices": False,
+        })
+        self.client.force_login(self.tutor)
+        upload = SimpleUploadedFile("questions.csv", b"section,question_type,text,marks\nA,short_answer,Question,1\n", content_type="text/csv")
+
+        response = self.client.post(reverse("assessment_import_questions", args=[exam.id]), {"file": upload})
+
+        self.assertRedirects(response, reverse("assessment_detail", args=[exam.id]))
+        self.assertEqual(exam.questions.count(), 0)
 
     def test_publish_requires_questions_then_succeeds(self):
         exam = create_assessment(tutor=self.tutor, data={
@@ -632,6 +776,120 @@ class BillingWorkflowTests(TestCase):
         self.assertLess(invoice.total_amount, upgrade_plan.price)
         self.assertIn("unused subscription credit", invoice.notes)
 
+    def test_active_subscription_can_only_upgrade_not_downgrade(self):
+        current_plan = SubscriptionPlan.objects.create(
+            name="Strict Plan",
+            duration_months=1,
+            price=1200,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STRICT,
+        )
+        lower_plan = SubscriptionPlan.objects.create(
+            name="Basic Plan",
+            duration_months=1,
+            price=400,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_NONE,
+        )
+        TutorSubscription.objects.create(
+            tutor=self.tutor,
+            plan=current_plan,
+            status=TutorSubscription.STATUS_ACTIVE,
+            starts_at=timezone.now() - timedelta(days=5),
+            ends_at=timezone.now() + timedelta(days=25),
+        )
+        self.client.force_login(self.tutor)
+
+        page = self.client.get(reverse("subscription_plans"))
+        response = self.client.post(reverse("start_subscription", args=[lower_plan.id]))
+
+        self.assertContains(page, "Locked Until Expiry")
+        self.assertRedirects(response, reverse("subscription_plans"))
+        self.assertEqual(Invoice.objects.filter(tutor=self.tutor, subscription_plan=lower_plan).count(), 0)
+
+    def test_expired_subscription_can_choose_lower_plan(self):
+        old_plan = SubscriptionPlan.objects.create(
+            name="Expired Strict",
+            duration_months=1,
+            price=1200,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STRICT,
+        )
+        lower_plan = SubscriptionPlan.objects.create(
+            name="Current Basic",
+            duration_months=1,
+            price=400,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_NONE,
+        )
+        TutorSubscription.objects.create(
+            tutor=self.tutor,
+            plan=old_plan,
+            status=TutorSubscription.STATUS_ACTIVE,
+            starts_at=timezone.now() - timedelta(days=40),
+            ends_at=timezone.now() - timedelta(days=10),
+        )
+
+        invoice = create_subscription_invoice(tutor=self.tutor, plan=lower_plan)
+
+        self.assertEqual(invoice.subscription_plan, lower_plan)
+        self.assertEqual(invoice.total_amount, lower_plan.price)
+
+    def test_matching_pending_subscription_invoice_is_reused(self):
+        plan = SubscriptionPlan.objects.create(
+            name="Reusable Plan",
+            duration_months=1,
+            price=500,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STANDARD,
+        )
+
+        first_invoice = create_subscription_invoice(tutor=self.tutor, plan=plan)
+        second_invoice = create_subscription_invoice(tutor=self.tutor, plan=plan)
+
+        self.assertEqual(first_invoice.id, second_invoice.id)
+        self.assertEqual(Invoice.objects.filter(tutor=self.tutor, subscription_plan=plan).count(), 1)
+
+    def test_changed_plan_price_creates_new_subscription_invoice(self):
+        plan = SubscriptionPlan.objects.create(
+            name="Changing Plan",
+            duration_months=1,
+            price=500,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STANDARD,
+        )
+
+        first_invoice = create_subscription_invoice(tutor=self.tutor, plan=plan)
+        plan.price = 700
+        plan.save(update_fields=["price"])
+        second_invoice = create_subscription_invoice(tutor=self.tutor, plan=plan)
+
+        self.assertNotEqual(first_invoice.id, second_invoice.id)
+        self.assertEqual(second_invoice.total_amount, 700)
+
+    def test_paid_upgrade_becomes_current_subscription_plan(self):
+        current_plan = SubscriptionPlan.objects.create(
+            name="Monthly Standard",
+            duration_months=1,
+            price=300,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STANDARD,
+        )
+        upgrade_plan = SubscriptionPlan.objects.create(
+            name="Quarterly Strict",
+            duration_months=3,
+            price=1200,
+            anti_cheating_level=SubscriptionPlan.ANTI_CHEATING_STRICT,
+        )
+        current_subscription = TutorSubscription.objects.create(
+            tutor=self.tutor,
+            plan=current_plan,
+            status=TutorSubscription.STATUS_ACTIVE,
+            starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() + timedelta(days=20),
+        )
+
+        invoice = create_subscription_invoice(tutor=self.tutor, plan=upgrade_plan)
+        mark_invoice_paid(invoice=invoice, method=Payment.METHOD_MANUAL, provider_reference="UPGRADE")
+        current_subscription.refresh_from_db()
+
+        active_subscription = TutorSubscription.objects.get(tutor=self.tutor, status=TutorSubscription.STATUS_ACTIVE)
+        self.assertEqual(active_subscription.plan, upgrade_plan)
+        self.assertEqual(current_subscription.status, TutorSubscription.STATUS_CANCELLED)
+
     def test_mpesa_callback_marks_invoice_paid_idempotently(self):
         exam = self.create_ready_assessment()
         invoice = get_or_create_assessment_invoice(tutor=self.tutor, exam=exam)
@@ -664,6 +922,41 @@ class BillingWorkflowTests(TestCase):
         self.assertEqual(invoice.status, Invoice.STATUS_PAID)
         self.assertEqual(payment.status, Payment.STATUS_SUCCESSFUL)
         self.assertEqual(MpesaTransaction.objects.filter(checkout_request_id="ws_CO_123").count(), 1)
+
+    def test_mpesa_stk_callback_rejects_invalid_json(self):
+        response = self.client.post(
+            reverse("mpesa_stk_callback"),
+            data="{bad json",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(MpesaTransaction.objects.count(), 0)
+
+    def test_mpesa_stk_callback_rejects_missing_checkout_request_id(self):
+        response = self.client.post(
+            reverse("mpesa_stk_callback"),
+            data='{"Body":{"stkCallback":{"ResultCode":0}}}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(MpesaTransaction.objects.count(), 0)
+
+    @override_settings(MPESA_CALLBACK_TOKEN="secret-token")
+    def test_mpesa_callback_token_is_required_when_configured(self):
+        payload = '{"Body":{"stkCallback":{"CheckoutRequestID":"ws_CO_SEC","ResultCode":0}}}'
+
+        missing = self.client.post(reverse("mpesa_stk_callback"), data=payload, content_type="application/json")
+        supplied = self.client.post(
+            reverse("mpesa_stk_callback"),
+            data=payload,
+            content_type="application/json",
+            headers={"X-MPESA-CALLBACK-TOKEN": "secret-token"},
+        )
+
+        self.assertEqual(missing.status_code, 403)
+        self.assertEqual(supplied.status_code, 200)
 
 
 class StudentDashboardWorkflowTests(TestCase):
@@ -741,6 +1034,9 @@ class StudentDashboardWorkflowTests(TestCase):
         response = self.client.get(reverse("student_dashboard"))
 
         self.assertContains(response, own_exam.title)
+        self.assertContains(response, "dashboard-shell")
+        self.assertContains(response, "createTodoModal")
+        self.assertContains(response, "ADM-777")
         self.assertNotContains(response, "Draft Hidden Test")
         self.assertNotContains(response, "Other Student Test")
         self.assertTrue(StudentNotification.objects.filter(student=self.student, assessment=own_exam).exists())
@@ -980,6 +1276,23 @@ class ExamTakingEngineTests(TestCase):
         self.assertRedirects(response, reverse("student_assessment_result", args=[submission.id]))
         self.assertTrue(submission.completed)
         self.assertEqual(submission.score, 5.0)
+
+    def test_student_cannot_view_another_students_result(self):
+        exam = self.create_objective_exam()
+        other_student, _ = create_student_account(
+            tutor=self.tutor,
+            fullname="Other Exam Student",
+            email="phase8-other-student@example.com",
+            school_name="Test School",
+            registration_number="P8-002",
+        )
+        self.classroom.students.add(other_student)
+        submission = Submission.objects.create(student=other_student, exam=exam, completed=True, score=3, submitted_at=timezone.now())
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse("student_assessment_result", args=[submission.id]))
+
+        self.assertEqual(response.status_code, 404)
 
 
 class ProctoringWorkflowTests(TestCase):
@@ -1222,6 +1535,19 @@ class ReportingWorkflowTests(TestCase):
         self.assertEqual(context["question_rows"][0]["correct_rate"], 50)
         self.assertEqual(context["violation_rows"][0]["count"], 1)
 
+    def test_reports_include_student_registration_numbers(self):
+        self.client.force_login(self.tutor)
+
+        tutor_response = self.client.get(reverse("tutor_reports"))
+        classroom_response = self.client.get(reverse("classroom_report", args=[self.classroom.id]))
+        assessment_response = self.client.get(reverse("assessment_report", args=[self.exam.id]))
+
+        self.assertContains(tutor_response, "P10-001")
+        self.assertContains(classroom_response, "P10-001")
+        self.assertContains(classroom_response, "P10-002")
+        self.assertContains(assessment_response, "P10-001")
+        self.assertContains(assessment_response, "P10-002")
+
     def test_tutor_report_view_is_scoped_to_owner(self):
         self.client.force_login(self.tutor)
         own = self.client.get(reverse("assessment_report", args=[self.exam.id]))
@@ -1242,6 +1568,8 @@ class ReportingWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/csv", response["Content-Type"])
         self.assertIn("Report Student One", response.content.decode())
+        self.assertIn("Registration Number", response.content.decode())
+        self.assertIn("P10-001", response.content.decode())
         self.assertEqual(excel_response.status_code, 200)
         self.assertIn("spreadsheetml.sheet", excel_response["Content-Type"])
 
@@ -1253,3 +1581,299 @@ class ReportingWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Analytics Test")
         self.assertNotContains(response, "Report Student Two")
+
+
+class AdminPlatformManagementTests(TestCase):
+    """Cover Phase 11 platform admin management workflows."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="phase11-admin",
+            email="phase11-admin@example.com",
+            fullname="Phase 11 Admin",
+            password="StrongPass123!",
+            role=User.ROLE_ADMIN,
+            is_staff=True,
+        )
+        self.tutor = create_tutor_account(
+            fullname="Managed Tutor",
+            email="phase11-tutor@example.com",
+            password="StrongPass123!",
+            institution_name="Managed School",
+        )
+        self.student, _ = create_student_account(
+            tutor=self.tutor,
+            fullname="Managed Student",
+            email="phase11-student@example.com",
+            school_name="Managed School",
+            registration_number="P11-001",
+        )
+
+    def test_non_admin_cannot_open_admin_console(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("admin_users"))
+
+        self.assertRedirects(response, reverse("dashboard"), fetch_redirect_response=False)
+
+    def test_admin_users_page_uses_dashboard_layout_and_registration_identity(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("admin_users"))
+
+        self.assertContains(response, "dashboard-shell")
+        self.assertContains(response, "Managed Accounts")
+        self.assertContains(response, "P11-001")
+
+    def test_admin_write_action_requires_csrf_token(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.admin)
+
+        response = csrf_client.post(reverse("admin_user_action", args=[self.tutor.id]), {"action": "suspend"})
+
+        self.assertEqual(response.status_code, 403)
+        self.tutor.refresh_from_db()
+        self.assertFalse(self.tutor.is_suspended)
+
+    def test_admin_can_suspend_and_reinstate_user_with_audit_log(self):
+        self.client.force_login(self.admin)
+
+        suspend = self.client.post(reverse("admin_user_action", args=[self.tutor.id]), {"action": "suspend"})
+        self.tutor.refresh_from_db()
+        reinstate = self.client.post(reverse("admin_user_action", args=[self.tutor.id]), {"action": "reinstate"})
+        self.tutor.refresh_from_db()
+
+        self.assertRedirects(suspend, reverse("admin_users"))
+        self.assertRedirects(reinstate, reverse("admin_users"))
+        self.assertFalse(self.tutor.is_suspended)
+        self.assertTrue(self.tutor.is_active)
+        self.assertTrue(AuditLog.objects.filter(action="user_suspended", target_id=str(self.tutor.id)).exists())
+        self.assertTrue(AuditLog.objects.filter(action="user_reinstated", target_id=str(self.tutor.id)).exists())
+
+    def test_admin_can_verify_tutor(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("admin_user_action", args=[self.tutor.id]), {"action": "verify_tutor"})
+        self.tutor.tutor_profile.refresh_from_db()
+
+        self.assertRedirects(response, reverse("admin_users"))
+        self.assertTrue(self.tutor.tutor_profile.is_verified)
+        self.assertTrue(AuditLog.objects.filter(action="tutor_verified").exists())
+
+    def test_admin_can_update_pricing_and_create_subscription_plan(self):
+        self.client.force_login(self.admin)
+
+        pricing_response = self.client.post(
+            reverse("admin_plans"),
+            {
+                "form_kind": "pricing",
+                "pricing-currency": "KES",
+                "pricing-pay_per_student_rate": "7.00",
+                "pricing-is_active": "on",
+            },
+        )
+        plan_response = self.client.post(
+            reverse("admin_plans"),
+            {
+                "form_kind": "plan",
+                "plan-name": "Phase 11 Yearly",
+                "plan-description": "Admin-created plan.",
+                "plan-duration_months": 12,
+                "plan-price": "4800.00",
+                "plan-currency": "KES",
+                "plan-discount_percent": "20.00",
+                "plan-anti_cheating_level": SubscriptionPlan.ANTI_CHEATING_STRICT,
+                "plan-is_active": "on",
+            },
+        )
+
+        self.assertRedirects(pricing_response, reverse("admin_plans"))
+        self.assertRedirects(plan_response, reverse("admin_plans"))
+        self.assertEqual(PlatformPricing.objects.filter(pay_per_student_rate=7).count(), 1)
+        self.assertTrue(SubscriptionPlan.objects.filter(name="Phase 11 Yearly").exists())
+        self.assertTrue(AuditLog.objects.filter(action="subscription_plan_saved").exists())
+
+    def test_admin_can_mark_invoice_paid_and_cancel_pending_invoice(self):
+        plan = SubscriptionPlan.objects.create(name="Admin Billing Plan", duration_months=1, price=500)
+        paid_invoice = create_subscription_invoice(tutor=self.tutor, plan=plan)
+        cancel_invoice = Invoice.objects.create(
+            tutor=self.tutor,
+            invoice_type=Invoice.TYPE_SUBSCRIPTION,
+            subscription_plan=plan,
+            currency="KES",
+            unit_amount=100,
+            quantity=1,
+            subtotal=100,
+            total_amount=100,
+        )
+        self.client.force_login(self.admin)
+
+        paid_response = self.client.post(reverse("admin_invoice_action", args=[paid_invoice.id]), {"action": "mark_paid"})
+        cancel_response = self.client.post(reverse("admin_invoice_action", args=[cancel_invoice.id]), {"action": "cancel"})
+        paid_invoice.refresh_from_db()
+        cancel_invoice.refresh_from_db()
+
+        self.assertRedirects(paid_response, reverse("admin_billing"))
+        self.assertRedirects(cancel_response, reverse("admin_billing"))
+        self.assertEqual(paid_invoice.status, Invoice.STATUS_PAID)
+        self.assertEqual(cancel_invoice.status, Invoice.STATUS_CANCELLED)
+        self.assertTrue(AuditLog.objects.filter(action="invoice_marked_paid").exists())
+
+    def test_admin_can_convert_contact_to_support_issue_and_resolve_it(self):
+        contact = ContactMessage.objects.create(name="Visitor", email="visitor@example.com", message="Need help.")
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("admin_contact_action", args=[contact.id]), {"action": "create_issue"})
+        issue = SupportIssue.objects.get(contact_message=contact)
+        issue_response = self.client.post(
+            reverse("admin_support_issue_edit", args=[issue.id]),
+            {
+                "subject": issue.subject,
+                "description": issue.description,
+                "priority": SupportIssue.PRIORITY_HIGH,
+                "status": SupportIssue.STATUS_RESOLVED,
+                "resolution_notes": "Handled.",
+                "assigned_to": self.admin.id,
+            },
+        )
+        contact.refresh_from_db()
+        issue.refresh_from_db()
+
+        self.assertRedirects(response, reverse("admin_contacts"))
+        self.assertRedirects(issue_response, reverse("admin_contacts"))
+        self.assertTrue(contact.is_read)
+        self.assertEqual(issue.status, SupportIssue.STATUS_RESOLVED)
+        self.assertIsNotNone(issue.resolved_at)
+
+    def test_admin_can_create_announcement_and_view_audit_logs(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("admin_announcements"),
+            {
+                "title": "Maintenance Notice",
+                "message": "The platform will be updated tonight.",
+                "audience": PlatformAnnouncement.AUDIENCE_ALL,
+                "is_active": "on",
+            },
+        )
+        audit_response = self.client.get(reverse("admin_audit_logs"))
+
+        self.assertRedirects(response, reverse("admin_announcements"))
+        self.assertTrue(PlatformAnnouncement.objects.filter(title="Maintenance Notice", created_by=self.admin).exists())
+        self.assertContains(audit_response, "announcement_saved")
+
+
+class BackgroundTaskWorkflowTests(TestCase):
+    """Cover Phase 12 task dispatch, reminders, payments, reports, and cleanup."""
+
+    def setUp(self):
+        self.tutor = create_tutor_account(
+            fullname="Task Tutor",
+            email="phase12-tutor@example.com",
+            password="StrongPass123!",
+        )
+        self.student, _ = create_student_account(
+            tutor=self.tutor,
+            fullname="Task Student",
+            email="phase12-student@example.com",
+            school_name="Task School",
+            registration_number="P12-001",
+        )
+        self.classroom = create_classroom(tutor=self.tutor, name="Task Class")
+        self.classroom.students.add(self.student)
+
+    @override_settings(BACKGROUND_TASK_BACKEND="threading", BACKGROUND_TASK_SYNCHRONOUS=False)
+    def test_development_backend_selects_threading(self):
+        self.assertEqual(get_task_backend(), BackgroundTaskLog.BACKEND_THREADING)
+
+    @override_settings(BACKGROUND_TASK_BACKEND="threading", BACKGROUND_TASK_SYNCHRONOUS=True, EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_due_reminder_task_creates_notification_and_marks_sent(self):
+        reminder = StudentReminder.objects.create(
+            student=self.student,
+            title="Study reminder",
+            remind_at=timezone.now() - timedelta(minutes=1),
+            kind=StudentReminder.KIND_TODO,
+        )
+
+        task_log = dispatch_task("reminders.dispatch_due")
+        reminder.refresh_from_db()
+
+        self.assertEqual(task_log.backend, BackgroundTaskLog.BACKEND_INLINE)
+        task_log.refresh_from_db()
+        self.assertEqual(task_log.status, BackgroundTaskLog.STATUS_SUCCESS)
+        self.assertTrue(reminder.is_sent)
+        self.assertTrue(StudentNotification.objects.filter(student=self.student, title="Study reminder").exists())
+
+    @override_settings(BACKGROUND_TASK_BACKEND="threading", BACKGROUND_TASK_SYNCHRONOUS=True)
+    def test_stale_pending_payment_task_marks_payment_and_invoice_failed(self):
+        invoice = Invoice.objects.create(
+            tutor=self.tutor,
+            invoice_type=Invoice.TYPE_SUBSCRIPTION,
+            currency="KES",
+            unit_amount=100,
+            quantity=1,
+            subtotal=100,
+            total_amount=100,
+        )
+        payment = Payment.objects.create(
+            invoice=invoice,
+            tutor=self.tutor,
+            amount=100,
+            status=Payment.STATUS_PENDING,
+        )
+        old_time = timezone.now() - timedelta(hours=2)
+        Payment.objects.filter(id=payment.id).update(created_at=old_time)
+
+        task_log = dispatch_task("payments.fail_stale_pending", older_than_minutes=60)
+        invoice.refresh_from_db()
+        payment.refresh_from_db()
+
+        task_log.refresh_from_db()
+        self.assertEqual(task_log.status, BackgroundTaskLog.STATUS_SUCCESS)
+        self.assertEqual(payment.status, Payment.STATUS_FAILED)
+        self.assertEqual(invoice.status, Invoice.STATUS_FAILED)
+
+    @override_settings(BACKGROUND_TASK_BACKEND="threading", BACKGROUND_TASK_SYNCHRONOUS=True)
+    def test_assessment_report_snapshot_task_records_result(self):
+        exam = Exam.objects.create(
+            classroom=self.classroom,
+            title="Task Report Test",
+            status=Exam.STATUS_PUBLISHED,
+            duration_minutes=30,
+            total_marks=10,
+        )
+        Question.objects.create(exam=exam, text="Q1", marks=10, correct_labels="A", order=1)
+        Submission.objects.create(student=self.student, exam=exam, completed=True, score=8, submitted_at=timezone.now())
+
+        task_log = dispatch_task("reports.assessment_snapshot", tutor_id=self.tutor.id, exam_id=exam.id)
+        task_log.refresh_from_db()
+
+        self.assertEqual(task_log.status, BackgroundTaskLog.STATUS_SUCCESS)
+        self.assertEqual(task_log.result["assessment"], "Task Report Test")
+        self.assertEqual(task_log.result["completed_count"], 1)
+
+    @override_settings(BACKGROUND_TASK_BACKEND="celery", BACKGROUND_TASK_SYNCHRONOUS=False)
+    def test_celery_backend_queues_celery_task(self):
+        with patch("core.tasks.run_registered_task.delay") as delay:
+            task_log = dispatch_task("cleanup.old_read_notifications")
+
+        self.assertEqual(task_log.backend, BackgroundTaskLog.BACKEND_CELERY)
+        delay.assert_called_once_with(task_log.id)
+
+    @override_settings(BACKGROUND_TASK_BACKEND="threading", BACKGROUND_TASK_SYNCHRONOUS=True)
+    def test_admin_can_dispatch_background_job(self):
+        admin = User.objects.create_user(
+            username="phase12-admin",
+            email="phase12-admin@example.com",
+            fullname="Phase 12 Admin",
+            password="StrongPass123!",
+            role=User.ROLE_ADMIN,
+            is_staff=True,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse("admin_dispatch_background_job"), {"job_name": "cleanup.old_read_notifications"})
+
+        self.assertRedirects(response, reverse("admin_background_jobs"))
+        self.assertTrue(BackgroundTaskLog.objects.filter(task_name="cleanup.old_read_notifications").exists())

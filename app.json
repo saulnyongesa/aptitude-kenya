@@ -1,0 +1,65 @@
+{
+  "name": "Aptitude Kenya",
+  "description": "Mobile-first online assessment platform for Kenyan tutors and students.",
+  "repository": "https://example.com/aptitude-kenya",
+  "keywords": ["django", "celery", "heroku", "education", "mpesa"],
+  "env": {
+    "APP_ENV": {
+      "description": "Application environment.",
+      "value": "production"
+    },
+    "DJANGO_SETTINGS_MODULE": {
+      "description": "Production Django settings module.",
+      "value": "config.settings.production"
+    },
+    "SECRET_KEY": {
+      "description": "Long random Django secret key.",
+      "generator": "secret"
+    },
+    "ALLOWED_HOSTS": {
+      "description": "Comma-separated production hosts.",
+      "required": true
+    },
+    "CSRF_TRUSTED_ORIGINS": {
+      "description": "Comma-separated HTTPS origins for public and portal domains.",
+      "required": true
+    },
+    "BACKGROUND_TASK_BACKEND": {
+      "description": "Use Celery workers in production.",
+      "value": "celery"
+    },
+    "MPESA_ENVIRONMENT": {
+      "description": "sandbox or production.",
+      "value": "sandbox"
+    },
+    "MPESA_CALLBACK_TOKEN": {
+      "description": "Optional callback token for M-Pesa callback URLs or proxy headers.",
+      "required": false
+    },
+    "EMAIL_BACKEND": {
+      "description": "Production email backend.",
+      "value": "django.core.mail.backends.smtp.EmailBackend"
+    },
+    "DEFAULT_FROM_EMAIL": {
+      "description": "Default sender address.",
+      "required": true
+    }
+  },
+  "addons": [
+    "heroku-postgresql:essential-0",
+    "heroku-redis:mini"
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    },
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "scripts": {
+    "postdeploy": "python manage.py check --deploy"
+  }
+}

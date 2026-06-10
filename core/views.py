@@ -13,13 +13,14 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook
-from .forms import AssessmentForm, BankQuestionSelectForm, BulkQuestionImportForm, BulkStudentImportForm, ClassroomForm, LoginForm, QuestionForm, QuestionSectionForm, StudentProvisionForm, StudentSearchForm, StudentTodoForm, TutorRegistrationForm
-from .models import Classroom, Exam, Invoice, Payment, ProctorLog, QuestionBankItem, SiteStatistic, ContactMessage, StudentNotification, StudentProfile, StudentTodo, Submission, SubscriptionPlan, User
+from .forms import AdminAnnouncementForm, AdminInvoiceSearchForm, AdminPricingForm, AdminSubscriptionPlanForm, AdminSupportIssueForm, AdminUserSearchForm, AssessmentForm, BankQuestionSelectForm, BulkQuestionImportForm, BulkStudentImportForm, ClassroomForm, ClassroomStudentMembershipForm, LoginForm, QuestionForm, QuestionSectionForm, StudentProvisionForm, StudentSearchForm, StudentTodoForm, TutorRegistrationForm
+from .models import AuditLog, BackgroundTaskLog, Classroom, Exam, Invoice, Payment, PlatformAnnouncement, PlatformPricing, ProctorLog, QuestionBankItem, SiteStatistic, ContactMessage, StudentNotification, StudentProfile, StudentTodo, Submission, SubscriptionPlan, SupportIssue, TutorProfile, TutorSubscription, User
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib import messages
 from .decorators import role_required
-from .services import activate_subscription_from_invoice, add_bank_question_to_assessment, archive_classroom, assign_student_to_classroom, assessment_can_publish_without_invoice, build_attempt_context, complete_student_todo, create_assessment, create_classroom, create_mpesa_payment_attempt, create_question_from_form, create_question_section, create_student_account, create_student_todo, create_subscription_invoice, create_tutor_account, estimate_subscription_upgrade_credit, get_active_subscription, get_admin_report_context, get_assessment_report_context, get_classroom_report_context, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_for_taking, get_student_dashboard_context, get_student_report_context, get_tutor_report_context, handle_mpesa_stk_callback, import_questions_from_file, import_students_from_file, mark_invoice_paid, mark_student_notification_read, publish_assessment, record_proctor_violation, reset_student_credentials, save_submission_answers, submit_assessment_attempt, tutor_assessment_export_rows, update_assessment, update_classroom
+from .services import add_bank_question_to_assessment, admin_mark_invoice_paid, archive_classroom, assign_existing_student_by_registration, assign_student_to_classroom, assessment_can_publish_without_invoice, build_attempt_context, cancel_invoice, complete_student_todo, create_assessment, create_classroom, create_mpesa_payment_attempt, create_question_from_form, create_question_section, create_student_account, create_student_todo, create_subscription_invoice, create_support_issue_from_contact, create_tutor_account, estimate_subscription_upgrade_credit, get_active_subscription, get_admin_report_context, get_assessment_report_context, get_classroom_report_context, get_or_create_assessment_invoice, get_or_start_submission, get_student_assessment_for_taking, get_student_dashboard_context, get_student_report_context, get_tutor_report_context, handle_mpesa_stk_callback, import_questions_from_file, import_students_from_file, mark_invoice_paid, mark_student_notification_read, publish_assessment, record_proctor_violation, remove_student_from_classroom, reset_student_credentials, save_platform_announcement, save_platform_pricing, save_subscription_plan, save_submission_answers, save_support_issue, set_tutor_verification, set_user_suspension, submit_assessment_attempt, tutor_assessment_export_rows, update_assessment, update_classroom
+from .tasking import dispatch_task, get_task_backend
 
 def index(request):
     # Fetch stats from the SiteStatistic model (Singleton-style)
@@ -118,6 +119,7 @@ def admin_dashboard(request):
     paid_invoices = Invoice.objects.filter(status=Invoice.STATUS_PAID)
     context = get_admin_report_context()
     context.update({
+        'active_admin_page': 'overview',
         'tutor_count': User.objects.filter(role=User.ROLE_TUTOR).count(),
         'student_count': User.objects.filter(role=User.ROLE_STUDENT).count(),
         'suspended_count': User.objects.filter(is_suspended=True).count(),
@@ -126,6 +128,256 @@ def admin_dashboard(request):
         'paid_invoice_count': paid_invoices.count(),
     })
     return render(request, 'dashboards/admin.html', context)
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_users(request):
+    """Manage tutor and student accounts from the platform dashboard."""
+    form = AdminUserSearchForm(request.GET)
+    users = User.objects.exclude(role=User.ROLE_ADMIN).order_by('-date_joined')
+    if form.is_valid():
+        query = form.cleaned_data.get('q')
+        role = form.cleaned_data.get('role')
+        if query:
+            users = users.filter(
+                Q(fullname__icontains=query)
+                | Q(email__icontains=query)
+                | Q(registration_id__icontains=query)
+                | Q(tutor_profile__institution_name__icontains=query)
+                | Q(student_profile__registration_number__icontains=query)
+            )
+        if role:
+            users = users.filter(role=role)
+    return render(
+        request,
+        'admin_console/users.html',
+        {
+            'search_form': form,
+            'active_admin_page': 'users',
+            'users': users.select_related('tutor_profile', 'student_profile')[:100],
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+@require_POST
+def admin_user_action(request, user_id):
+    """Apply admin account actions such as suspend or tutor verification."""
+    user = get_object_or_404(User, id=user_id)
+    action = request.POST.get('action')
+    try:
+        if action == 'suspend':
+            set_user_suspension(actor=request.user, user=user, is_suspended=True)
+            messages.success(request, "User suspended.")
+        elif action == 'reinstate':
+            set_user_suspension(actor=request.user, user=user, is_suspended=False)
+            messages.success(request, "User reinstated.")
+        elif action == 'verify_tutor':
+            set_tutor_verification(actor=request.user, tutor=user, is_verified=True)
+            messages.success(request, "Tutor verified.")
+        elif action == 'unverify_tutor':
+            set_tutor_verification(actor=request.user, tutor=user, is_verified=False)
+            messages.success(request, "Tutor verification removed.")
+        else:
+            messages.error(request, "Unknown user action.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect('admin_users')
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_billing(request):
+    """Manage invoices, payments, and active subscriptions."""
+    form = AdminInvoiceSearchForm(request.GET)
+    invoices = Invoice.objects.select_related('tutor', 'assessment', 'subscription_plan').order_by('-created_at')
+    if form.is_valid():
+        status = form.cleaned_data.get('status')
+        query = form.cleaned_data.get('q')
+        if status:
+            invoices = invoices.filter(status=status)
+        if query:
+            invoices = invoices.filter(Q(reference__icontains=query) | Q(tutor__email__icontains=query) | Q(assessment__title__icontains=query))
+    return render(
+        request,
+        'admin_console/billing.html',
+        {
+            'search_form': form,
+            'active_admin_page': 'billing',
+            'invoices': invoices[:100],
+            'payments': Payment.objects.select_related('invoice', 'tutor').order_by('-created_at')[:30],
+            'subscriptions': TutorSubscription.objects.select_related('tutor', 'plan').order_by('-created_at')[:30],
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+@require_POST
+def admin_invoice_action(request, invoice_id):
+    """Apply admin invoice actions."""
+    invoice = get_object_or_404(Invoice, id=invoice_id)
+    action = request.POST.get('action')
+    try:
+        if action == 'mark_paid':
+            admin_mark_invoice_paid(actor=request.user, invoice=invoice)
+            messages.success(request, "Invoice marked paid.")
+        elif action == 'cancel':
+            cancel_invoice(actor=request.user, invoice=invoice)
+            messages.success(request, "Invoice cancelled.")
+        else:
+            messages.error(request, "Unknown invoice action.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect('admin_billing')
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_plans(request, plan_id=None):
+    """Manage pay-per-student pricing and tutor subscription plans."""
+    pricing = PlatformPricing.objects.order_by('-updated_at').first() or PlatformPricing.objects.create(currency='KES', pay_per_student_rate=5)
+    plan = get_object_or_404(SubscriptionPlan, id=plan_id) if plan_id else None
+    pricing_form = AdminPricingForm(instance=pricing, prefix='pricing')
+    plan_form = AdminSubscriptionPlanForm(instance=plan, prefix='plan')
+    if request.method == 'POST':
+        form_kind = request.POST.get('form_kind')
+        if form_kind == 'pricing':
+            pricing_form = AdminPricingForm(request.POST, instance=pricing, prefix='pricing')
+            if pricing_form.is_valid():
+                save_platform_pricing(actor=request.user, pricing=pricing_form.save(commit=False))
+                messages.success(request, "Pricing updated.")
+                return redirect('admin_plans')
+            _push_form_errors(request, pricing_form)
+        elif form_kind == 'plan':
+            plan_form = AdminSubscriptionPlanForm(request.POST, instance=plan, prefix='plan')
+            if plan_form.is_valid():
+                save_subscription_plan(actor=request.user, plan=plan_form.save(commit=False))
+                messages.success(request, "Subscription plan saved.")
+                return redirect('admin_plans')
+            _push_form_errors(request, plan_form)
+    return render(
+        request,
+        'admin_console/plans.html',
+        {
+            'pricing_form': pricing_form,
+            'plan_form': plan_form,
+            'plans': SubscriptionPlan.objects.order_by('price', 'duration_months'),
+            'editing_plan': plan,
+            'active_admin_page': 'plans',
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_contacts(request):
+    """Manage contact messages and support issues."""
+    return render(
+        request,
+        'admin_console/contacts.html',
+        {
+            'contacts': ContactMessage.objects.order_by('-created_at')[:100],
+            'issues': SupportIssue.objects.select_related('user', 'assigned_to', 'contact_message')[:100],
+            'active_admin_page': 'support',
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+@require_POST
+def admin_contact_action(request, contact_id):
+    """Mark a contact message read or convert it into a support issue."""
+    contact = get_object_or_404(ContactMessage, id=contact_id)
+    action = request.POST.get('action')
+    if action == 'mark_read':
+        contact.is_read = True
+        contact.save(update_fields=['is_read'])
+        messages.success(request, "Contact message marked read.")
+    elif action == 'create_issue':
+        create_support_issue_from_contact(actor=request.user, contact_message=contact)
+        messages.success(request, "Support issue created.")
+    else:
+        messages.error(request, "Unknown contact action.")
+    return redirect('admin_contacts')
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_support_issue(request, issue_id=None):
+    """Create or update a support issue."""
+    issue = get_object_or_404(SupportIssue, id=issue_id) if issue_id else None
+    form = AdminSupportIssueForm(instance=issue)
+    if request.method == 'POST':
+        form = AdminSupportIssueForm(request.POST, instance=issue)
+        if form.is_valid():
+            save_support_issue(actor=request.user, issue=form.save(commit=False))
+            messages.success(request, "Support issue saved.")
+            return redirect('admin_contacts')
+        _push_form_errors(request, form)
+    return render(request, 'admin_console/support_issue_form.html', {'form': form, 'issue': issue, 'active_admin_page': 'support'})
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_announcements(request, announcement_id=None):
+    """Manage platform-wide announcements."""
+    announcement = get_object_or_404(PlatformAnnouncement, id=announcement_id) if announcement_id else None
+    form = AdminAnnouncementForm(instance=announcement)
+    if request.method == 'POST':
+        form = AdminAnnouncementForm(request.POST, instance=announcement)
+        if form.is_valid():
+            save_platform_announcement(actor=request.user, announcement=form.save(commit=False))
+            messages.success(request, "Announcement saved.")
+            return redirect('admin_announcements')
+        _push_form_errors(request, form)
+    return render(
+        request,
+        'admin_console/announcements.html',
+        {
+            'form': form,
+            'announcement': announcement,
+            'announcements': PlatformAnnouncement.objects.select_related('created_by')[:100],
+            'active_admin_page': 'announcements',
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_audit_logs(request):
+    """Show recent admin actions."""
+    return render(
+        request,
+        'admin_console/audit_logs.html',
+        {'logs': AuditLog.objects.select_related('actor')[:200], 'active_admin_page': 'audit'},
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+def admin_background_jobs(request):
+    """Show background task status and manual job triggers."""
+    return render(
+        request,
+        'admin_console/background_jobs.html',
+        {
+            'task_backend': get_task_backend(),
+            'task_logs': BackgroundTaskLog.objects.all()[:200],
+            'active_admin_page': 'jobs',
+        },
+    )
+
+
+@role_required(User.ROLE_ADMIN, allow_platform_admin=True)
+@require_POST
+def admin_dispatch_background_job(request):
+    """Dispatch a safe operational background job."""
+    job_name = request.POST.get('job_name')
+    allowed_jobs = {
+        'reminders.dispatch_due': {},
+        'payments.fail_stale_pending': {},
+        'cleanup.old_task_logs': {},
+        'cleanup.old_read_notifications': {},
+    }
+    if job_name not in allowed_jobs:
+        messages.error(request, "Unknown background job.")
+        return redirect('admin_background_jobs')
+    task_log = dispatch_task(job_name, **allowed_jobs[job_name])
+    messages.success(request, f"Background job queued: {task_log.task_name}.")
+    return redirect('admin_background_jobs')
 
 
 @role_required(User.ROLE_TUTOR)
@@ -221,6 +473,7 @@ def classroom_detail(request, classroom_id):
     created_credentials = None
     import_result = None
     student_form = StudentProvisionForm(tutor=request.user)
+    membership_form = ClassroomStudentMembershipForm()
     bulk_form = BulkStudentImportForm(tutor=request.user, initial={'classroom_id': classroom.id})
 
     if request.method == 'POST':
@@ -234,6 +487,37 @@ def classroom_detail(request, classroom_id):
                     classroom=classroom,
                 )
                 messages.success(request, f"Imported {len(import_result['created'])} students.")
+        elif form_action == 'add_existing_student':
+            membership_form = ClassroomStudentMembershipForm(request.POST)
+            if membership_form.is_valid():
+                try:
+                    student, created_membership = assign_existing_student_by_registration(
+                        tutor=request.user,
+                        classroom=classroom,
+                        registration_number=membership_form.cleaned_data['registration_number'],
+                    )
+                except StudentProfile.DoesNotExist:
+                    messages.error(request, "No tutor-owned student was found with that registration number.")
+                else:
+                    if created_membership:
+                        messages.success(request, f"{student.fullname} was added to this classroom.")
+                    else:
+                        messages.info(request, f"{student.fullname} is already in this classroom.")
+                    return redirect('classroom_detail', classroom_id=classroom.id)
+            else:
+                for field_errors in membership_form.errors.values():
+                    for error in field_errors:
+                        messages.error(request, error)
+        elif form_action == 'remove_student':
+            profile = get_object_or_404(
+                StudentProfile.objects.select_related('user'),
+                id=request.POST.get('profile_id'),
+                tutor=request.user,
+                user__joined_rooms=classroom,
+            )
+            remove_student_from_classroom(tutor=request.user, classroom=classroom, student=profile.user)
+            messages.success(request, f"{profile.user.fullname} was removed from this classroom.")
+            return redirect('classroom_detail', classroom_id=classroom.id)
         else:
             student_form = StudentProvisionForm(request.POST, tutor=request.user)
             if student_form.is_valid():
@@ -271,6 +555,8 @@ def classroom_detail(request, classroom_id):
             | Q(user__email__icontains=search_query)
             | Q(registration_number__icontains=search_query)
         )
+    student_count = StudentProfile.objects.filter(user__joined_rooms=classroom).count()
+    assessment_count = classroom.exams.count()
     performance = Submission.objects.filter(exam__classroom=classroom).aggregate(
         submission_count=Count('id'),
         average_score=Avg('score'),
@@ -281,8 +567,11 @@ def classroom_detail(request, classroom_id):
         {
             'classroom': classroom,
             'student_form': student_form,
+            'membership_form': membership_form,
             'bulk_form': bulk_form,
             'students': students,
+            'student_count': student_count,
+            'assessment_count': assessment_count,
             'search_query': search_query,
             'performance': performance,
             'created_credentials': created_credentials,
@@ -550,6 +839,7 @@ def subscription_plans(request):
     active_subscription = get_active_subscription(tutor=request.user)
     for plan in plans:
         plan.is_current_plan = bool(active_subscription and active_subscription.plan_id == plan.id)
+        plan.is_blocked_downgrade = bool(active_subscription and active_subscription.plan_id != plan.id and plan.price <= active_subscription.plan.price)
         plan.upgrade_credit = estimate_subscription_upgrade_credit(tutor=request.user, new_plan=plan)
     return render(
         request,
@@ -619,7 +909,6 @@ def invoice_dev_confirm(request, invoice_id):
             except ValueError as exc:
                 messages.error(request, str(exc))
         else:
-            activate_subscription_from_invoice(invoice=invoice)
             messages.success(request, "Payment confirmed and subscription activated.")
     return redirect('invoice_detail', invoice_id=invoice.id)
 
@@ -628,8 +917,13 @@ def invoice_dev_confirm(request, invoice_id):
 @require_POST
 def mpesa_stk_callback(request):
     """Receive M-Pesa STK callbacks from Daraja."""
-    payload = json.loads(request.body.decode("utf-8") or "{}")
-    handle_mpesa_stk_callback(payload)
+    if not _mpesa_callback_authorized(request):
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Unauthorized"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+        handle_mpesa_stk_callback(payload)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid callback payload"}, status=400)
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
@@ -637,7 +931,22 @@ def mpesa_stk_callback(request):
 @require_POST
 def mpesa_c2b_confirmation(request):
     """Receive C2B confirmation payloads for later reconciliation."""
+    if not _mpesa_callback_authorized(request):
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Unauthorized"}, status=403)
+    try:
+        json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid callback payload"}, status=400)
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+def _mpesa_callback_authorized(request):
+    """Allow callbacks when no token is configured, otherwise require a match."""
+    expected_token = getattr(settings, "MPESA_CALLBACK_TOKEN", "")
+    if not expected_token:
+        return True
+    supplied_token = request.headers.get("X-MPESA-CALLBACK-TOKEN") or request.GET.get("token", "")
+    return supplied_token == expected_token
 
 
 @role_required(User.ROLE_TUTOR)
